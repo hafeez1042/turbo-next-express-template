@@ -1,0 +1,21 @@
+{
+  "name": "@repo/types",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint . --max-warnings 0",
+    "build:json-schema": "cross-env typescript-json-schema './tsconfig.json' '*' -o ./lib/swagger-schema.json"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "*",
+    "@repo/typescript-config": "*",
+    "@types/eslint": "^8.56.5",
+    "@types/node": "^20.11.24",
+    "cross-env": "^7.0.3",
+    "eslint": "^8.57.0",
+    "typescript": "^5.3.3",
+    "typescript-json-schema": "^0.63.0"
+  }
+}

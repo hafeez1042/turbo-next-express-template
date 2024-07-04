@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "preserveConstEnums": true,
+    "strictNullChecks": true,
+    "sourceMap": true,
+    "allowJs": true,
+    "target": "es6",
+    "outDir": ".build",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": [
+      "es2015"
+    ],
+    "esModuleInterop": true,
+    "rootDir": "./",
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "removeComments": false
+  },
+  "include": [
+    "src/**/*"
+    // This includes all files in the src directory
+  ]
+}
