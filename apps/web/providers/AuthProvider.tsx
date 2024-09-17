@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import { Amplify } from "aws-amplify";
 import { signIn, confirmSignIn, AuthSession, signOut } from "aws-amplify/auth";
-import { Skeleton } from "@repo/ui/components/ui/skeleton";
+import { Skeleton } from "@repo/frontend/components/ui/skeleton";
 import { usePathname, useRouter } from "next/navigation";
 import { fetchAuthSession } from "../helpers/cognito";
 import { removeAccessToken } from "../utils/accessToken";
@@ -117,7 +117,7 @@ export const AuthProvider: React.FC<PropsWithChildren<IProps>> = (props) => {
   );
 };
 
-const loginPathName = "/auth/login";
+const loginPathName = ""; //"/auth/login";
 interface IProps {
   // Add your prop types here
 }

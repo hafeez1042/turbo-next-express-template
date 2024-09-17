@@ -1,7 +1,8 @@
+import { APIError } from "@repo/frontend/errors/APIError";
 import { getHttp } from "../utils/getHttp";
 import { getQueryParams } from "../utils/getQueryParams";
 import { IAPIV1Response, IQueryStringParams } from "@repo/types/lib/types";
-import { AxiosInstance } from "axios";
+import { AxiosError, AxiosInstance } from "axios";
 
 export abstract class AbstractServices<
   T = Object,
@@ -18,33 +19,82 @@ export abstract class AbstractServices<
 
   public getAll = async (
     queryParams?: IQueryStringParams
-  ): Promise<IAPIV1Response<TGetAll[]>> => {
-    const response = await this.http.get(
-      `/?${queryParams ? getQueryParams(queryParams) : ""}`
+  ): Promise<TGetAll[]> => {
+    try {
+      const response = await this.http.get<IAPIV1Response<TGetAll[]>>(
+        `/?${queryParams ? getQueryParams(queryParams) : ""}`
+      );
+      if (response.data.success) {
+        return response.data.data;
+      } else {
+        throw new APIError(response.data as IAPIV1Response);
+      }
+    } catch (error) {
+      throw this.apiError(error);
+    }
+  };
+
+  public getById = async (id: string): Promise<TGetByID> => {
+    try {
+      const response = await this.http.get<IAPIV1Response<TGetByID>>(`/${id}`);
+      if (response.data.success) {
+        return response.data.data;
+      } else {
+        throw new APIError(response.data as IAPIV1Response);
+      }
+    } catch (error) {
+      throw this.apiError(error);
+    }
+  };
+
+  public update = async (id: string, data: Partial<T>): Promise<TUpdate> => {
+    try {
+      const response = await this.http.put<IAPIV1Response<TUpdate>>(
+        `/${id}`,
+        data
+      );
+      if (response.data.success) {
+        return response.data.data;
+      } else {
+        throw new APIError(response.data as IAPIV1Response);
+      }
+    } catch (error) {
+      throw this.apiError(error);
+    }
+  };
+
+  public create = async (data: T): Promise<TCreate> => {
+    try {
+      const response = await this.http.post<IAPIV1Response<TCreate>>(`/`, data);
+      if (response.data.success) {
+        return response.data.data;
+      } else {
+        throw new APIError(response.data as IAPIV1Response);
+      }
+    } catch (error) {
+      throw this.apiError(error);
+    }
+  };
+
+  public delete = async (id: string): Promise<null> => {
+    try {
+      const response = await this.http.delete<IAPIV1Response>(`/${id}`);
+      if (response.data.success) {
+        return null;
+      } else {
+        throw new APIError(response.data as IAPIV1Response);
+      }
+    } catch (error) {
+      throw this.apiError(error);
+    }
+  };
+
+  protected apiError = (error: unknown) => {
+    const _error = error as AxiosError;
+    return new APIError(
+      _error.response.data as IAPIV1Response,
+      _error.message,
+      _error.response.status
     );
-    return response.data;
-  };
-
-  public getById = async (id: string): Promise<IAPIV1Response<TGetByID>> => {
-    const response = await this.http.get(`/${id}`);
-    return response.data;
-  };
-
-  public update = async (
-    id: string,
-    data: Partial<T>
-  ): Promise<IAPIV1Response<TUpdate>> => {
-    const response = await this.http.put(`/${id}`, data);
-    return response.data;
-  };
-
-  public create = async (data: T): Promise<IAPIV1Response<TCreate>> => {
-    const response = await this.http.post(`/`, data);
-    return response.data;
-  };
-
-  public delete = async (id: string): Promise<IAPIV1Response> => {
-    const response = await this.http.delete(`/${id}`);
-    return response.data;
   };
 }

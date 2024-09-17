@@ -2,14 +2,8 @@
 import { userServices } from "../services/userServices";
 import { getAccessToken } from "../utils/accessToken";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, {
-  PropsWithChildren,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { PageLoader } from "@repo/ui/components/PageLoader";
+import React, { PropsWithChildren, useContext, useMemo, useState } from "react";
+import { PageLoader } from "@repo/frontend/components/PageLoader";
 import { useQuery } from "../hooks/useQuery";
 import { ICurrentUser } from "../types";
 import { getDataFromAPIResponse } from "../utils/getDataFromAPIResponse";
@@ -30,10 +24,7 @@ export const UserProvider: React.FC<PropsWithChildren> = ({ children }) => {
     searchParam.get("token") || getAccessToken()
   );
 
-  const [response, isFetchingUser] = useQuery(
-    getDataFromAPIResponse(userServices.getCurrentUser()),
-    []
-  );
+  const [response, isFetchingUser] = useQuery(userServices.getCurrentUser, []);
 
   const user = response?.user;
 

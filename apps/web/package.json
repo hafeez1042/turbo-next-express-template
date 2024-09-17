@@ -9,7 +9,7 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
-    "@repo/ui": "*",
+    "@repo/frontend": "*",
     "aws-amplify": "^6.3.4",
     "axios": "^1.7.2",
     "localforage": "^1.10.0",

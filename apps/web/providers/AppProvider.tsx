@@ -9,7 +9,7 @@ import React, {
   useState,
 } from "react";
 
-import { Toaster } from "@repo/ui/components/ui/sonner";
+import { Toaster } from "@repo/frontend/components/ui/sonner";
 import { AuthProvider } from "./AuthProvider";
 import { UserProvider } from "./UserProvider";
 

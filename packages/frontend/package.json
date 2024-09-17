@@ -1,5 +1,5 @@
 {
-  "name": "@repo/ui",
+  "name": "@repo/frontend",
   "version": "0.0.0",
   "private": true,
   "exports": {
@@ -8,7 +8,8 @@
     "./tailwind.config": "./tailwind.config.ts",
     "./lib/*": ["./src/lib/*.tsx", "./src/lib/*.ts"],
     "./components/*": "./src/components/*.tsx",
-    "./icons/*": "./src/icons/*.tsx"
+    "./icons/*": "./src/icons/*.tsx",
+    "./errors/*": "./src/errors/*.ts"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
