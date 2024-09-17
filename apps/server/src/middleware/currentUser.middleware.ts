@@ -1,4 +1,4 @@
-import { NotAuthorizedError } from "../errors/NotAuthorizedError";
+import { NotAuthorizedError } from "@repo/backend/lib/errors/NotAuthorizedError";
 import { RequestHandler } from "express";
 import { ICognitoJWTUserData } from "../types/types";
 

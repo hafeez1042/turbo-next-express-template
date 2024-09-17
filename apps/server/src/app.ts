@@ -7,10 +7,11 @@ import bodyParser from "body-parser";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import {router} from "./routes";
-import { ForbiddenError } from "./errors/ForbiddenError";
-import { NotFoundError } from "./errors/NotFoundError";
-import { errorHandler } from "./errors/errorHandler";
+import { router } from "./routes";
+
+import { ForbiddenError } from "@repo/backend/lib/errors/ForbiddenError";
+import { NotFoundError } from "@repo/backend/lib/errors/NotFoundError";
+import { errorHandler } from "@repo/backend/lib/errors/errorHandler";
 import morganMiddleware from "./middleware/morgan.middleware";
 import swaggerSpec from "./swagger/swaggerSpec";
 import { clientTimeZoneMiddleware } from "./middleware/clientTimeZone.middleware";
