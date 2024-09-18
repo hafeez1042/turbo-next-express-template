@@ -1,7 +1,7 @@
 import { RequestHandler } from "express";
 import { IQueryStringParams, IAPIResponse } from "@repo/types/lib/types";
 
-export interface ICRUDController<T = object, TCreate = T> {
+export interface ICRUDController<T = object, TCreate = T, TUpdate = T> {
   create?: RequestHandler<unknown, IAPIResponse, TCreate>;
   getAll?: RequestHandler<
     unknown,
@@ -16,8 +16,6 @@ export interface ICRUDController<T = object, TCreate = T> {
     { query: IQueryStringParams }
   >;
   getById?: RequestHandler<{ id: string }, IAPIResponse>;
-  update?: RequestHandler<{ id: string }, IAPIResponse, Partial<T>>;
+  update?: RequestHandler<{ id: string }, IAPIResponse, Partial<TUpdate>>;
   delete?: RequestHandler<{ id: string }, IAPIResponse>;
 }
-
-

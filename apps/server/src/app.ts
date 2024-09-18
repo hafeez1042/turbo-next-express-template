@@ -12,9 +12,10 @@ import { router } from "./routes";
 import { ForbiddenError } from "@repo/backend/lib/errors/ForbiddenError";
 import { NotFoundError } from "@repo/backend/lib/errors/NotFoundError";
 import { errorHandler } from "@repo/backend/lib/errors/errorHandler";
-import morganMiddleware from "./middleware/morgan.middleware";
+import { morganMiddleware } from "@repo/backend/lib/middleware/morgan.middleware";
+import { clientTimeZoneMiddleware } from "@repo/backend/lib/middleware/clientTimeZone.middleware";
+
 import swaggerSpec from "./swagger/swaggerSpec";
-import { clientTimeZoneMiddleware } from "./middleware/clientTimeZone.middleware";
 
 const allowList =
   process.env.ALLOWED_IP_LIST?.split(",").map((ip) => ip.trim()) || [];

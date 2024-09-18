@@ -62,28 +62,8 @@ export interface IOption {
   [key: string]: number | string | boolean;
 }
 
-export interface IVersionedModelAttribute extends IBaseModelAttributes {
-  source_item_id?: string;
-  version?: number;
-  is_active?: boolean;
-  deleted_at?: Date;
-  deleted_by?: string;
-}
 
-export interface IBaseModelAttributes<T = string> {
-  createdBy?: string;
-  updatedBy?: string;
-  _id?: T;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
 
-export enum FileTypeEnum {
-  Image = "IMAGE",
-  Video = "VIDEO",
-  Audio = "AUDIO",
-  Document = "DOCUMENT",
-}
 
 export interface IAPIResponse<D = object[] | object> {
   version?: string;

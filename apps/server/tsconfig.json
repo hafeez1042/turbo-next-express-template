@@ -22,6 +22,5 @@
   },
   "include": [
     "src/**/*"
-, "../../packages/backend/src/types/ICRUDController.ts"    // This includes all files in the src directory
   ]
 }

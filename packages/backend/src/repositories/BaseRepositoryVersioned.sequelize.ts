@@ -6,10 +6,11 @@ import {
   DatabaseError,
   Includeable,
 } from "sequelize";
+import { v4 as uuidv4 } from "uuid";
 import { MakeNullishOptional } from "sequelize/types/utils";
 
 import { IQueryStringParams } from "@repo/types/lib/types";
-import { IBaseAttributes } from "@repo/types/lib/types.sql";
+import { IVersionedBaseAttributes } from "@repo/types/lib/types.sql";
 
 import { getData, getDataArray } from "../utils/sequelize/sequelizeUtils";
 import { generateSequelizeQuery } from "../utils/sequelize/generateSequelizeQuery";
@@ -17,7 +18,7 @@ import { ConflictError } from "../errors/ConflictError";
 import { InternalServerError } from "../errors/InternalServerError";
 
 export abstract class BaseRepository<
-  TModelAttributes extends IBaseAttributes,
+  TModelAttributes extends IVersionedBaseAttributes,
   TCreationAttributes extends {} = TModelAttributes,
 > {
   protected model: typeof Model &
@@ -43,6 +44,12 @@ export abstract class BaseRepository<
     }
     const transaction: Transaction = await this.model.sequelize!.transaction();
     try {
+      // Set initial version and active flag
+      const item_id = uuidv4();
+      (data as IVersionedBaseAttributes).version = 1;
+      (data as IVersionedBaseAttributes).is_active = true;
+      (data as IVersionedBaseAttributes).id = item_id;
+      (data as IVersionedBaseAttributes).source_item_id = item_id;
       const response: Model<TModelAttributes, TCreationAttributes> =
         await this.model.create(data, { transaction });
       await transaction.commit();
@@ -65,9 +72,38 @@ export abstract class BaseRepository<
         throw new Error("Not Found");
       }
 
-      const updatedEntry = await entry.update(data, { transaction });
+      // Deactivate the current version
+      const entryData = getData(entry) as TModelAttributes &
+        IVersionedBaseAttributes;
+
+      const updateValues = {
+        is_active: false,
+      } as Partial<TModelAttributes & IVersionedBaseAttributes>;
+
+      await entry.update(updateValues, {
+        transaction,
+      });
+
+      const source_item_id = entryData.source_item_id || entryData.id;
+      // Create a new version
+      delete entryData.id;
+      delete entryData.created_at;
+
+      const newVersionData = {
+        ...entryData,
+        ...data,
+        version: (entryData.version || 0) + 1,
+        source_item_id,
+        is_active: true,
+      };
+      const newEntry = await this.model.create(
+        newVersionData as unknown as MakeNullishOptional<TCreationAttributes>,
+        {
+          transaction,
+        }
+      );
       await transaction.commit();
-      return getData(updatedEntry);
+      return getData(newEntry);
     } catch (error) {
       await transaction.rollback();
       throw error;
@@ -82,6 +118,13 @@ export abstract class BaseRepository<
         throw new Error("Not Found");
       }
 
+      // Soft delete: mark as inactive or set a deleted flag
+      const updateValues = {
+        is_active: false,
+        deleted_at: new Date(),
+        deleted_by: deletedBy,
+      } as Partial<TModelAttributes & IVersionedBaseAttributes>;
+      await entry.update(updateValues, { transaction });
       await entry.destroy({ transaction });
 
       await transaction.commit();
@@ -124,6 +167,7 @@ export abstract class BaseRepository<
       order: sequelizeQuery.order,
       where: {
         ...whereOptions,
+        ...this.versionFilter(),
       } as WhereOptions<TModelAttributes>,
     });
     return getDataArray(results);
@@ -152,7 +196,18 @@ export abstract class BaseRepository<
     }
     const transaction: Transaction = await this.model.sequelize!.transaction();
     try {
-      const responses = await this.model.bulkCreate(data, {
+      const versionedData = data.map((item) => {
+        const item_id = uuidv4();
+        return {
+          ...item,
+          version: 1, // Set initial version to 1
+          is_active: true, // Set the initial active state
+          id: item_id,
+          source_item_id: item_id,
+        } as MakeNullishOptional<TCreationAttributes>;
+      });
+
+      const responses = await this.model.bulkCreate(versionedData, {
         transaction,
       });
       await transaction.commit();
@@ -179,8 +234,33 @@ export abstract class BaseRepository<
           throw new Error(`Not Found: ${item.id}`);
         }
 
-        const updatedEntry = await entry.update(item, { transaction });
-        updatedEntries.push(getData(updatedEntry));
+        // Deactivate current version and create a new one
+        const updateValues = {
+          is_active: false,
+        } as Partial<TModelAttributes & IVersionedBaseAttributes>;
+        await entry.update(updateValues, { transaction });
+        const entryData = getData(entry) as TModelAttributes &
+          IVersionedBaseAttributes;
+        const source_item_id = entryData.source_item_id || entryData.id;
+
+        delete entryData.id;
+        delete entryData.updated_at;
+        delete entryData.updated_by;
+
+        const newVersionData = {
+          ...entryData,
+          ...item,
+          version: (entryData.version || 0) + 1,
+          is_active: true,
+          source_item_id,
+        };
+        const newEntry = await this.model.create(
+          newVersionData as unknown as MakeNullishOptional<TCreationAttributes>,
+          {
+            transaction,
+          }
+        );
+        updatedEntries.push(getData(newEntry));
       }
       await transaction.commit();
       return updatedEntries;
@@ -193,7 +273,12 @@ export abstract class BaseRepository<
   async bulkDelete(data: string[]) {
     const transaction: Transaction = await this.model.sequelize!.transaction();
     try {
-      await this.model.destroy({
+      // Soft delete: mark all entries as inactive
+      const updateValues = {
+        is_active: false,
+        deleted_at: new Date(),
+      } as Partial<TModelAttributes & IVersionedBaseAttributes>;
+      await this.model.update(updateValues, {
         where: {
           id: { [Op.in]: data },
         } as WhereOptions,
@@ -207,8 +292,28 @@ export abstract class BaseRepository<
     }
   }
 
+  protected versionFilter() {
+    return { is_active: { [Op.not]: false } };
+  }
+
   protected abstract getSearchQuery: (
     searchText: string
   ) => WhereOptions<TModelAttributes>;
+
+  async history(
+    sourceItemId: string,
+    include?: boolean
+  ): Promise<TModelAttributes[]> {
+    const versions = await this.model.findAll({
+      include: include ? this.historyIncludeable : undefined,
+      where: {
+        [Op.or]: { source_item_id: sourceItemId, id: sourceItemId },
+      } as WhereOptions<TModelAttributes>,
+      order: [["version", "ASC"]], // Order by version number
+    });
+
+    return getDataArray(versions);
+  }
 }
 
+export interface IBaseRepository<> {}

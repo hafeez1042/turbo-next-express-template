@@ -5,6 +5,7 @@ import mongoose, {
   HydratedDocument,
   Model,
   ObjectId,
+  UpdateQuery,
 } from "mongoose";
 import { createMongoQuery } from "../utils/mongoose/generateMongoQuery";
 import { getMongoObjectId } from "../utils/mongoose/getMongoObjectId";
@@ -13,8 +14,7 @@ export abstract class BaseRepository<
   T,
   TDoc extends HydratedDocument<any>,
   I = mongoose.Types.ObjectId,
-> implements IRepository<T, TDoc, I>
-{
+> {
   protected model: Model<TDoc>;
 
   protected constructor(model: Model<TDoc>) {
@@ -40,7 +40,7 @@ export abstract class BaseRepository<
     }
 
     const items = await query.exec();
-    return items.map(this.accessor);
+    return items.map((item) => item.toObject());
   };
 
   public getAllWithCursor = async (
@@ -76,7 +76,7 @@ export abstract class BaseRepository<
     const nextCursor = lastItem ? (lastItem._id as ObjectId).toString() : null;
 
     return {
-      items: items.map(this.accessor),
+      items: items.map((item) => item.toObject()),
       nextCursor,
     };
   };
@@ -97,21 +97,21 @@ export abstract class BaseRepository<
 
   public getById = async (id: I | string) => {
     const item = await this.model.findById(id);
-    return item ? this.accessor(item) : null;
+    return item ? item.toObject() : null;
   };
 
   public findOne = async (queryParams: IQueryStringParams) => {
     const mongoQuery = createMongoQuery(queryParams?.filter);
     const item = await this.model.findOne(mongoQuery);
-    return item ? this.accessor(item) : null;
+    return item ? item.toObject() : null;
   };
 
   public create = async (data: Partial<T>) => {
-    const item = await this.model.create(this.mutator(data));
-    return this.accessor(item);
+    const item = await this.model.create(data);
+    return item.toObject();
   };
 
-  public update = async (
+  public updateById = async (
     id: I | string | undefined,
     data: Partial<T>,
     upsert?: boolean
@@ -124,10 +124,10 @@ export abstract class BaseRepository<
     if (id) {
       const updatedItem = await this.model.findOneAndUpdate(
         { _id: id },
-        { $set: this.mutator(data) },
+        { $set: data as UpdateQuery<T> },
         options
       );
-      return updatedItem ? this.accessor(updatedItem) : null;
+      return updatedItem ? updatedItem.toObject() : null;
     } else {
       return await this.create(data);
     }
@@ -138,7 +138,7 @@ export abstract class BaseRepository<
     updateData: Partial<T>
   ) => {
     const mongoQuery = createMongoQuery(findQueryParams?.filter);
-    const update = { $set: this.mutator(updateData) };
+    const update = { $set: updateData as UpdateQuery<T> };
 
     await this.model.updateMany(mongoQuery, update);
   };
@@ -147,7 +147,10 @@ export abstract class BaseRepository<
     await this.model.deleteOne({ _id: id });
   };
 
-  public delete = async (query: IQueryStringParams | I | string, many?: boolean) => {
+  public delete = async (
+    query: IQueryStringParams | I | string,
+    many?: boolean
+  ) => {
     if (mongoose.isValidObjectId(query) || typeof query === "string") {
       await this.model.findById(query).deleteOne();
     } else {
@@ -160,36 +163,5 @@ export abstract class BaseRepository<
     }
   };
 
-  public abstract accessor(data: TDoc): T;
-
-  public abstract mutator(data: Partial<T>): Partial<TDoc>;
-
   public abstract getSearchQuery?: (searchString: string) => FilterQuery<any>;
-}
-
-export interface IRepository<T, TDoc, I> {
-  getAll: (
-    query: IQueryStringParams,
-    populate?: string | string[]
-  ) => Promise<T[]>;
-  getById: (id: I) => Promise<T | null>;
-  findOne: (query: IQueryStringParams) => Promise<T | null>;
-  create: (data: T) => Promise<T>;
-  update: (
-    id: I | string | undefined,
-    data: Partial<T>,
-    upsert?: boolean
-  ) => Promise<T | null>;
-  findAndUpdate: (
-    findQueryParams: IQueryStringParams,
-    updateData: Partial<T>
-  ) => Promise<void>;
-  deleteById: (id: I) => Promise<void>;
-  delete: (query: IQueryStringParams) => Promise<void>;
-
-  accessor: (data: HydratedDocument<TDoc>) => T;
-
-  mutator: (data: Partial<T>) => Partial<TDoc>;
-
-  getSearchQuery?: (searchString: string) => FilterQuery<any>;
 }
