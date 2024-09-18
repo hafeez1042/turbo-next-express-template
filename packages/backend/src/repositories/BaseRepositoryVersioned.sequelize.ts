@@ -16,29 +16,91 @@ import { getData, getDataArray } from "../utils/sequelize/sequelizeUtils";
 import { generateSequelizeQuery } from "../utils/sequelize/generateSequelizeQuery";
 import { ConflictError } from "../errors/ConflictError";
 import { InternalServerError } from "../errors/InternalServerError";
+import { IBaseRepository } from "./IBaseRepository";
 
-export abstract class BaseRepository<
-  TModelAttributes extends IVersionedBaseAttributes,
-  TCreationAttributes extends {} = TModelAttributes,
-> {
-  protected model: typeof Model &
-    (new () => Model<TModelAttributes, TCreationAttributes>);
+export abstract class BaseRepository<T extends IVersionedBaseAttributes>
+  implements IBaseRepository<T>
+{
+  protected model: typeof Model & (new () => Model<T, T>);
 
   protected getByIdIncludeable: Includeable[] = [];
-  protected getByOneIncludeable: Includeable[] = [];
+  protected findOneIncludeable: Includeable[] = [];
   protected getAllIncludeable: Includeable[] = [];
   protected historyIncludeable: Includeable[] = [];
 
-  protected constructor(
-    model: typeof Model &
-      (new () => Model<TModelAttributes, TCreationAttributes>)
-  ) {
+  protected constructor(model: typeof Model & (new () => Model<T, T>)) {
     this.model = model;
   }
 
-  async create(
-    data: MakeNullishOptional<TCreationAttributes>
-  ): Promise<TModelAttributes> {
+  async getAll(query: IQueryStringParams): Promise<T[]> {
+    const sequelizeQuery = generateSequelizeQuery(query, this.getSearchQuery);
+    const whereOptions = sequelizeQuery?.where || {};
+
+    const results = await this.model.findAll({
+      include: this.getAllIncludeable.length
+        ? this.getAllIncludeable
+        : undefined,
+      order: sequelizeQuery.order,
+      where: {
+        ...whereOptions,
+        ...this.versionFilter(),
+      } as WhereOptions<T>,
+    });
+    return getDataArray(results);
+  }
+
+  async getAllWithCursor(
+    query: IQueryStringParams,
+    cursorComparison: "lt" | "gt" = "gt"
+  ): Promise<{ items: T[]; nextCursor: string | null }> {
+    const sequelizeQuery = generateSequelizeQuery(query, this.getSearchQuery);
+    const whereOptions = sequelizeQuery?.where || {};
+
+    if (query.cursor) {
+      // Assuming cursor is a string representing an ID
+      const cursorValue = query.cursor;
+      // Modify the where clause to get results after the cursor value
+      whereOptions[cursorComparison === "gt" ? Op.gt : Op.lt] = {
+        id: cursorValue,
+      }; // Adjust this according to your cursor logic
+    }
+
+    const results = await this.model.findAll({
+      include: this.getAllIncludeable.length
+        ? this.getAllIncludeable
+        : undefined,
+      order: sequelizeQuery.order,
+      where: {
+        ...whereOptions,
+        ...this.versionFilter(),
+      } as WhereOptions<T>,
+      limit: query.limit, // Limit should still be applied
+    });
+    const items = getDataArray(results) as T[];
+
+    const lastItem =
+      items.length >= (query?.limit || 0) ? items[items.length - 1] : null;
+    const nextCursor = lastItem ? lastItem.id : null;
+
+    return {
+      items,
+      nextCursor: nextCursor || null,
+    };
+  }
+
+  async getById<TWithDetails = T>(
+    id: string,
+    included?: boolean
+  ): Promise<TWithDetails | null> {
+    const response = await this.model.findByPk(id, {
+      include: this.getByIdIncludeable.length
+        ? this.getByIdIncludeable
+        : undefined,
+    });
+    return response ? getData(response) : null;
+  }
+
+  async create(data: T): Promise<T> {
     if (!data) {
       throw new Error("Invalid data");
     }
@@ -50,8 +112,10 @@ export abstract class BaseRepository<
       (data as IVersionedBaseAttributes).is_active = true;
       (data as IVersionedBaseAttributes).id = item_id;
       (data as IVersionedBaseAttributes).source_item_id = item_id;
-      const response: Model<TModelAttributes, TCreationAttributes> =
-        await this.model.create(data, { transaction });
+      const response: Model<T, T> = await this.model.create(
+        data as unknown as MakeNullishOptional<T>,
+        { transaction }
+      );
       await transaction.commit();
       return getData(response);
     } catch (error) {
@@ -60,10 +124,7 @@ export abstract class BaseRepository<
     }
   }
 
-  async update(
-    id: string,
-    data: Partial<TModelAttributes>
-  ): Promise<TModelAttributes | null> {
+  async update(id: string, data: Partial<T>): Promise<T | null> {
     const transaction: Transaction = await this.model.sequelize!.transaction();
     try {
       let entry = await this.model.findByPk(id, { transaction });
@@ -73,12 +134,11 @@ export abstract class BaseRepository<
       }
 
       // Deactivate the current version
-      const entryData = getData(entry) as TModelAttributes &
-        IVersionedBaseAttributes;
+      const entryData = getData(entry) as T & IVersionedBaseAttributes;
 
       const updateValues = {
         is_active: false,
-      } as Partial<TModelAttributes & IVersionedBaseAttributes>;
+      } as Partial<T & IVersionedBaseAttributes>;
 
       await entry.update(updateValues, {
         transaction,
@@ -97,7 +157,7 @@ export abstract class BaseRepository<
         is_active: true,
       };
       const newEntry = await this.model.create(
-        newVersionData as unknown as MakeNullishOptional<TCreationAttributes>,
+        newVersionData as unknown as MakeNullishOptional<T>,
         {
           transaction,
         }
@@ -108,6 +168,13 @@ export abstract class BaseRepository<
       await transaction.rollback();
       throw error;
     }
+  }
+
+  async updateMany(
+    query: IQueryStringParams,
+    updateData: Partial<T>
+  ): Promise<void> {
+    throw new Error("Update many not supported in versioned table");
   }
 
   async delete(id: string, deletedBy?: string): Promise<void> {
@@ -123,7 +190,7 @@ export abstract class BaseRepository<
         is_active: false,
         deleted_at: new Date(),
         deleted_by: deletedBy,
-      } as Partial<TModelAttributes & IVersionedBaseAttributes>;
+      } as Partial<T & IVersionedBaseAttributes>;
       await entry.update(updateValues, { transaction });
       await entry.destroy({ transaction });
 
@@ -141,44 +208,15 @@ export abstract class BaseRepository<
     }
   }
 
-  async getById<TWithDetails = TModelAttributes>(
-    id: string,
-    included?: boolean
-  ): Promise<TWithDetails | null> {
-    const response = await this.model.findByPk(id, {
-      include: included ? this.getByIdIncludeable : undefined,
-    });
-    return response ? getData(response) : null;
-  }
-
-  async deleteByQuery(query: IQueryStringParams): Promise<void> {
+  async bulkDelete(query: IQueryStringParams): Promise<void> {
     await this.model.destroy(generateSequelizeQuery(query));
   }
 
-  async getAll(
-    query: IQueryStringParams,
-    included?: boolean
-  ): Promise<TModelAttributes[]> {
-    const sequelizeQuery = generateSequelizeQuery(query, this.getSearchQuery);
-    const whereOptions = sequelizeQuery?.where || {};
-
-    const results = await this.model.findAll({
-      include: included ? this.getAllIncludeable : undefined,
-      order: sequelizeQuery.order,
-      where: {
-        ...whereOptions,
-        ...this.versionFilter(),
-      } as WhereOptions<TModelAttributes>,
-    });
-    return getDataArray(results);
-  }
-
-  async getOne(
-    query: IQueryStringParams,
-    included?: boolean
-  ): Promise<TModelAttributes | null> {
+  async findOne(query: IQueryStringParams): Promise<T | null> {
     const results = await this.model.findOne({
-      include: included ? this.getByOneIncludeable : undefined,
+      include: this.findOneIncludeable.length
+        ? this.findOneIncludeable
+        : undefined,
       ...generateSequelizeQuery(query, this.getSearchQuery),
     });
 
@@ -188,9 +226,7 @@ export abstract class BaseRepository<
     return getData(results);
   }
 
-  async bulkCreate(
-    data: MakeNullishOptional<TCreationAttributes>[]
-  ): Promise<TModelAttributes[]> {
+  async bulkCreate(data: MakeNullishOptional<T>[]): Promise<T[]> {
     if (!data || data.length === 0) {
       throw new Error("Invalid data");
     }
@@ -204,7 +240,7 @@ export abstract class BaseRepository<
           is_active: true, // Set the initial active state
           id: item_id,
           source_item_id: item_id,
-        } as MakeNullishOptional<TCreationAttributes>;
+        } as MakeNullishOptional<T>;
       });
 
       const responses = await this.model.bulkCreate(versionedData, {
@@ -219,13 +255,10 @@ export abstract class BaseRepository<
     }
   }
 
-  async bulkUpdate(
-    data: (MakeNullishOptional<Partial<TModelAttributes>> & { id?: string })[]
-  ) {
+  async bulkUpdate(data: (Partial<T> & { id: string })[]) {
     const transaction: Transaction = await this.model.sequelize!.transaction();
     try {
-      const updatedEntries: MakeNullishOptional<Partial<TModelAttributes>>[] =
-        [];
+      const updatedEntries: MakeNullishOptional<Partial<T>>[] = [];
 
       for (const item of data) {
         const entry = await this.model.findByPk(item.id, { transaction });
@@ -237,10 +270,9 @@ export abstract class BaseRepository<
         // Deactivate current version and create a new one
         const updateValues = {
           is_active: false,
-        } as Partial<TModelAttributes & IVersionedBaseAttributes>;
+        } as Partial<T & IVersionedBaseAttributes>;
         await entry.update(updateValues, { transaction });
-        const entryData = getData(entry) as TModelAttributes &
-          IVersionedBaseAttributes;
+        const entryData = getData(entry) as T & IVersionedBaseAttributes;
         const source_item_id = entryData.source_item_id || entryData.id;
 
         delete entryData.id;
@@ -255,36 +287,13 @@ export abstract class BaseRepository<
           source_item_id,
         };
         const newEntry = await this.model.create(
-          newVersionData as unknown as MakeNullishOptional<TCreationAttributes>,
+          newVersionData as unknown as MakeNullishOptional<T>,
           {
             transaction,
           }
         );
         updatedEntries.push(getData(newEntry));
       }
-      await transaction.commit();
-      return updatedEntries;
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
-  }
-
-  async bulkDelete(data: string[]) {
-    const transaction: Transaction = await this.model.sequelize!.transaction();
-    try {
-      // Soft delete: mark all entries as inactive
-      const updateValues = {
-        is_active: false,
-        deleted_at: new Date(),
-      } as Partial<TModelAttributes & IVersionedBaseAttributes>;
-      await this.model.update(updateValues, {
-        where: {
-          id: { [Op.in]: data },
-        } as WhereOptions,
-        transaction,
-      });
-
       await transaction.commit();
     } catch (error) {
       await transaction.rollback();
@@ -296,24 +305,19 @@ export abstract class BaseRepository<
     return { is_active: { [Op.not]: false } };
   }
 
-  protected abstract getSearchQuery: (
-    searchText: string
-  ) => WhereOptions<TModelAttributes>;
+  abstract getSearchQuery: (searchText: string) => WhereOptions<T>;
 
-  async history(
-    sourceItemId: string,
-    include?: boolean
-  ): Promise<TModelAttributes[]> {
+  async history(sourceItemId: string): Promise<T[]> {
     const versions = await this.model.findAll({
-      include: include ? this.historyIncludeable : undefined,
+      include: this.historyIncludeable.length
+        ? this.historyIncludeable
+        : undefined,
       where: {
         [Op.or]: { source_item_id: sourceItemId, id: sourceItemId },
-      } as WhereOptions<TModelAttributes>,
+      } as WhereOptions<T>,
       order: [["version", "ASC"]], // Order by version number
     });
 
     return getDataArray(versions);
   }
 }
-
-export interface IBaseRepository<> {}

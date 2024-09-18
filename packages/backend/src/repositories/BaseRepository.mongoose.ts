@@ -1,4 +1,3 @@
-//Repository.ts
 import { IQueryStringParams } from "@repo/types/lib/types";
 import mongoose, {
   FilterQuery,
@@ -9,12 +8,14 @@ import mongoose, {
 } from "mongoose";
 import { createMongoQuery } from "../utils/mongoose/generateMongoQuery";
 import { getMongoObjectId } from "../utils/mongoose/getMongoObjectId";
+import { IBaseRepository } from "./IBaseRepository";
 
 export abstract class BaseRepository<
   T,
   TDoc extends HydratedDocument<any>,
   I = mongoose.Types.ObjectId,
-> {
+> implements IBaseRepository<T, I>
+{
   protected model: Model<TDoc>;
 
   protected constructor(model: Model<TDoc>) {
@@ -22,8 +23,7 @@ export abstract class BaseRepository<
   }
 
   public getAll = async (
-    queryParams: Omit<IQueryStringParams, "cursor"> = {},
-    populate?: string | string[]
+    queryParams: Omit<IQueryStringParams, "cursor"> = {}
   ) => {
     const searchQuery =
       this.getSearchQuery && queryParams.q
@@ -35,18 +35,13 @@ export abstract class BaseRepository<
 
     query = this.applyQueryModifiers(query, queryParams);
 
-    if (populate) {
-      query.populate(populate);
-    }
-
     const items = await query.exec();
-    return items.map((item) => item.toObject());
+    return items.map((item) => item.toObject() as T);
   };
 
   public getAllWithCursor = async (
     queryParams: IQueryStringParams = {},
-    cursorComparison: "$lt" | "$gt" = "$gt",
-    populate?: string | string[]
+    cursorComparison: "lt" | "gt" = "gt"
   ) => {
     const searchQuery =
       this.getSearchQuery && queryParams.q
@@ -56,16 +51,14 @@ export abstract class BaseRepository<
     const mongoQuery = createMongoQuery(queryParams?.filter, searchQuery);
     if (queryParams.cursor) {
       mongoQuery._id = {
-        [cursorComparison]: getMongoObjectId(queryParams.cursor),
+        [cursorComparison === "lt" ? "&lt" : "$gt"]: getMongoObjectId(
+          queryParams.cursor
+        ),
       };
     }
     let query = this.model.find(mongoQuery);
 
     query = this.applyQueryModifiers(query, queryParams);
-
-    if (populate) {
-      query.populate(populate);
-    }
 
     const items = await query.exec();
 
@@ -76,7 +69,7 @@ export abstract class BaseRepository<
     const nextCursor = lastItem ? (lastItem._id as ObjectId).toString() : null;
 
     return {
-      items: items.map((item) => item.toObject()),
+      items: items.map((item) => item.toObject() as T),
       nextCursor,
     };
   };
@@ -95,24 +88,24 @@ export abstract class BaseRepository<
     return query;
   }
 
-  public getById = async (id: I | string) => {
+  public getById = async (id: I) => {
     const item = await this.model.findById(id);
-    return item ? item.toObject() : null;
+    return item ? (item.toObject() as T) : null;
   };
 
   public findOne = async (queryParams: IQueryStringParams) => {
     const mongoQuery = createMongoQuery(queryParams?.filter);
     const item = await this.model.findOne(mongoQuery);
-    return item ? item.toObject() : null;
+    return item ? (item.toObject() as T) : null;
   };
 
   public create = async (data: Partial<T>) => {
     const item = await this.model.create(data);
-    return item.toObject();
+    return item.toObject() as T;
   };
 
-  public updateById = async (
-    id: I | string | undefined,
+  public update = async (
+    id: I | undefined,
     data: Partial<T>,
     upsert?: boolean
   ) => {
@@ -127,41 +120,44 @@ export abstract class BaseRepository<
         { $set: data as UpdateQuery<T> },
         options
       );
-      return updatedItem ? updatedItem.toObject() : null;
+      return updatedItem ? (updatedItem.toObject() as T) : null;
     } else {
       return await this.create(data);
     }
   };
 
-  public findAndUpdate = async (
-    findQueryParams: IQueryStringParams,
-    updateData: Partial<T>
-  ) => {
-    const mongoQuery = createMongoQuery(findQueryParams?.filter);
-    const update = { $set: updateData as UpdateQuery<T> };
-
-    await this.model.updateMany(mongoQuery, update);
-  };
-
-  public deleteById = async (id: I | string) => {
+  public delete = async (id: I) => {
     await this.model.deleteOne({ _id: id });
   };
 
-  public delete = async (
-    query: IQueryStringParams | I | string,
-    many?: boolean
+  public bulkCreate = async (data: Partial<T>[]) => {
+    const items = await this.model.insertMany(data);
+    return items.map((item) => item as T);
+  };
+
+  // Bulk update method
+  public updateMany = async (
+    filter: IQueryStringParams, // Filter to find the documents
+    updateData: Partial<T> // Data to update
   ) => {
-    if (mongoose.isValidObjectId(query) || typeof query === "string") {
-      await this.model.findById(query).deleteOne();
-    } else {
-      const mongoQuery = createMongoQuery((query as IQueryStringParams).filter);
-      if (many) {
-        await this.model.deleteMany(mongoQuery);
-      } else {
-        await this.model.deleteOne(mongoQuery);
-      }
+    const update = { $set: updateData as UpdateQuery<T> };
+    await this.model.updateMany(createMongoQuery(filter.filter), update, {
+      multi: true,
+    });
+  };
+
+  public bulkUpdate = async (updateData: (Partial<T> & { id: string })[]) => {
+    for (const item of updateData) {
+      const update = { $set: updateData as UpdateQuery<T> };
+      await this.model.updateOne({ _id: item.id }, update);
     }
   };
 
-  public abstract getSearchQuery?: (searchString: string) => FilterQuery<any>;
+  // Bulk delete method
+  public bulkDelete = async (filter: IQueryStringParams) => {
+    const result = await this.model.deleteMany(createMongoQuery(filter.filter));
+    return result; // Result contains metadata (e.g., deletedCount)
+  };
+
+  public abstract getSearchQuery?: (searchString: string) => FilterQuery<TDoc>;
 }

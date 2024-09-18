@@ -15,36 +15,109 @@ import { getData, getDataArray } from "../utils/sequelize/sequelizeUtils";
 import { generateSequelizeQuery } from "../utils/sequelize/generateSequelizeQuery";
 import { ConflictError } from "../errors/ConflictError";
 import { InternalServerError } from "../errors/InternalServerError";
+import { IBaseRepository } from "./IBaseRepository";
 
-export abstract class BaseRepository<
-  TModelAttributes extends IBaseAttributes,
-  TCreationAttributes extends {} = TModelAttributes,
-> {
-  protected model: typeof Model &
-    (new () => Model<TModelAttributes, TCreationAttributes>);
+export abstract class BaseRepository<T extends IBaseAttributes>
+  implements IBaseRepository<T, string>
+{
+  protected model: typeof Model & (new () => Model<T>);
 
   protected getByIdIncludeable: Includeable[] = [];
-  protected getByOneIncludeable: Includeable[] = [];
+  protected findOneIncludeable: Includeable[] = [];
   protected getAllIncludeable: Includeable[] = [];
   protected historyIncludeable: Includeable[] = [];
 
-  protected constructor(
-    model: typeof Model &
-      (new () => Model<TModelAttributes, TCreationAttributes>)
-  ) {
+  protected constructor(model: typeof Model & (new () => Model<T, T>)) {
     this.model = model;
   }
 
-  async create(
-    data: MakeNullishOptional<TCreationAttributes>
-  ): Promise<TModelAttributes> {
+  async getAll(query: IQueryStringParams): Promise<T[]> {
+    const sequelizeQuery = generateSequelizeQuery(query, this.getSearchQuery);
+    const whereOptions = sequelizeQuery?.where || {};
+
+    const results = await this.model.findAll({
+      include: this.getAllIncludeable.length
+        ? this.getAllIncludeable
+        : undefined,
+      order: sequelizeQuery.order,
+      where: {
+        ...whereOptions,
+      } as WhereOptions<T>,
+    });
+    return getDataArray(results);
+  }
+
+  async getAllWithCursor(
+    query: IQueryStringParams,
+    cursorComparison: "lt" | "gt" = "gt"
+  ): Promise<{ items: T[]; nextCursor: string | null }> {
+    const sequelizeQuery = generateSequelizeQuery(query, this.getSearchQuery);
+    const whereOptions = sequelizeQuery?.where || {};
+
+    if (query.cursor) {
+      // Assuming cursor is a string representing an ID
+      const cursorValue = query.cursor;
+      // Modify the where clause to get results after the cursor value
+      whereOptions[cursorComparison === "gt" ? Op.gt : Op.lt] = {
+        id: cursorValue,
+      }; // Adjust this according to your cursor logic
+    }
+
+    const results = await this.model.findAll({
+      include: this.getAllIncludeable.length
+        ? this.getAllIncludeable
+        : undefined,
+      order: sequelizeQuery.order,
+      where: whereOptions as WhereOptions<T>,
+      limit: query.limit, // Limit should still be applied
+    });
+    const items = getDataArray(results) as T[];
+
+    const lastItem =
+      items.length >= (query?.limit || 0) ? items[items.length - 1] : null;
+    const nextCursor = lastItem ? lastItem.id : null;
+
+    return {
+      items,
+      nextCursor: nextCursor || null,
+    };
+  }
+
+  async getById<TWithDetails = T>(id: string): Promise<TWithDetails | null> {
+    const response = await this.model.findByPk(id, {
+      include: this.getByIdIncludeable.length
+        ? this.getByIdIncludeable
+        : undefined,
+    });
+    return response ? getData(response) : null;
+  }
+
+  async findOne(query: IQueryStringParams): Promise<T | null> {
+    const results = await this.model.findOne({
+      include: this.findOneIncludeable.length
+        ? this.findOneIncludeable
+        : undefined,
+      ...generateSequelizeQuery(query, this.getSearchQuery),
+    });
+
+    if (!results) {
+      return null;
+    }
+    return getData(results);
+  }
+
+  async create(data: T): Promise<T> {
     if (!data) {
       throw new Error("Invalid data");
     }
     const transaction: Transaction = await this.model.sequelize!.transaction();
     try {
-      const response: Model<TModelAttributes, TCreationAttributes> =
-        await this.model.create(data, { transaction });
+      const response: Model<T> = await this.model.create(
+        data as unknown as MakeNullishOptional<T>,
+        {
+          transaction,
+        }
+      );
       await transaction.commit();
       return getData(response);
     } catch (error) {
@@ -55,14 +128,22 @@ export abstract class BaseRepository<
 
   async update(
     id: string,
-    data: Partial<TModelAttributes>
-  ): Promise<TModelAttributes | null> {
+    data: Partial<T>,
+    upsert?: boolean
+  ): Promise<T | null> {
     const transaction: Transaction = await this.model.sequelize!.transaction();
     try {
       let entry = await this.model.findByPk(id, { transaction });
       if (!entry) {
-        await transaction.rollback();
-        throw new Error("Not Found");
+        if (!upsert) {
+          await transaction.rollback();
+          throw new Error("Not Found");
+        } else {
+          const response = await this.create(data as T);
+          await transaction.commit();
+
+          return response;
+        }
       }
 
       const updatedEntry = await entry.update(data, { transaction });
@@ -74,7 +155,16 @@ export abstract class BaseRepository<
     }
   }
 
-  async delete(id: string, deletedBy?: string): Promise<void> {
+  async updateMany(
+    query: IQueryStringParams,
+    updateData: Partial<T>
+  ): Promise<void> {
+    await this.model.update(updateData, {
+      where: generateSequelizeQuery(query).where!,
+    });
+  }
+
+  async delete(id: string): Promise<void> {
     const transaction: Transaction = await this.model.sequelize!.transaction();
     try {
       const entry = await this.model.findByPk(id);
@@ -98,55 +188,11 @@ export abstract class BaseRepository<
     }
   }
 
-  async getById<TWithDetails = TModelAttributes>(
-    id: string,
-    included?: boolean
-  ): Promise<TWithDetails | null> {
-    const response = await this.model.findByPk(id, {
-      include: included ? this.getByIdIncludeable : undefined,
-    });
-    return response ? getData(response) : null;
-  }
-
-  async deleteByQuery(query: IQueryStringParams): Promise<void> {
+  async bulkDelete(query: IQueryStringParams): Promise<void> {
     await this.model.destroy(generateSequelizeQuery(query));
   }
 
-  async getAll(
-    query: IQueryStringParams,
-    included?: boolean
-  ): Promise<TModelAttributes[]> {
-    const sequelizeQuery = generateSequelizeQuery(query, this.getSearchQuery);
-    const whereOptions = sequelizeQuery?.where || {};
-
-    const results = await this.model.findAll({
-      include: included ? this.getAllIncludeable : undefined,
-      order: sequelizeQuery.order,
-      where: {
-        ...whereOptions,
-      } as WhereOptions<TModelAttributes>,
-    });
-    return getDataArray(results);
-  }
-
-  async getOne(
-    query: IQueryStringParams,
-    included?: boolean
-  ): Promise<TModelAttributes | null> {
-    const results = await this.model.findOne({
-      include: included ? this.getByOneIncludeable : undefined,
-      ...generateSequelizeQuery(query, this.getSearchQuery),
-    });
-
-    if (!results) {
-      return null;
-    }
-    return getData(results);
-  }
-
-  async bulkCreate(
-    data: MakeNullishOptional<TCreationAttributes>[]
-  ): Promise<TModelAttributes[]> {
+  async bulkCreate(data: MakeNullishOptional<T>[]): Promise<T[]> {
     if (!data || data.length === 0) {
       throw new Error("Invalid data");
     }
@@ -164,13 +210,10 @@ export abstract class BaseRepository<
     }
   }
 
-  async bulkUpdate(
-    data: (MakeNullishOptional<Partial<TModelAttributes>> & { id?: string })[]
-  ) {
+  async bulkUpdate(data: (Partial<T> & { id: string })[]) {
     const transaction: Transaction = await this.model.sequelize!.transaction();
     try {
-      const updatedEntries: MakeNullishOptional<Partial<TModelAttributes>>[] =
-        [];
+      const updatedEntries: T[] = [];
 
       for (const item of data) {
         const entry = await this.model.findByPk(item.id, { transaction });
@@ -183,32 +226,12 @@ export abstract class BaseRepository<
         updatedEntries.push(getData(updatedEntry));
       }
       await transaction.commit();
-      return updatedEntries;
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
   }
 
-  async bulkDelete(data: string[]) {
-    const transaction: Transaction = await this.model.sequelize!.transaction();
-    try {
-      await this.model.destroy({
-        where: {
-          id: { [Op.in]: data },
-        } as WhereOptions,
-        transaction,
-      });
-
-      await transaction.commit();
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
-  }
-
-  protected abstract getSearchQuery: (
-    searchText: string
-  ) => WhereOptions<TModelAttributes>;
+  abstract getSearchQuery: (searchText: string) => WhereOptions<T>;
+  
 }
-
