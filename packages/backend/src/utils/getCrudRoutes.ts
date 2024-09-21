@@ -1,5 +1,5 @@
 import { RequestHandler, Router } from "express";
-import { ICRUDController } from "../types/ICRUDController";
+import { ICRUDController } from "../controller/ICRUDController";
 
 const getCrudRoutes = (
   path: string,

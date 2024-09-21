@@ -27,10 +27,10 @@ export const generateSequelizeQuery = (
   if (params.filter) {
     Object.keys(params.filter).forEach((field) => {
       if (excludeFilter && excludeFilter.includes(field)) return;
-      if (!Object.keys(params.filter![field]).length) return;
+      if (!Object.keys(params.filter![field]!).length) return;
       sequelizeQuery.where = {
         ...sequelizeQuery.where,
-        [field]: convertFieldFilterToSequelize(params.filter![field]),
+        [field]: convertFieldFilterToSequelize(params.filter![field]!),
       };
     });
   }

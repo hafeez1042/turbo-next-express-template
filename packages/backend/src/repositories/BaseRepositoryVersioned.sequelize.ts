@@ -1,11 +1,11 @@
 import {
   Model,
   Transaction,
-  Op,
   WhereOptions,
   DatabaseError,
   Includeable,
 } from "sequelize";
+import { Op } from "sequelize/lib/operators";
 import { v4 as uuidv4 } from "uuid";
 import { MakeNullishOptional } from "sequelize/types/utils";
 

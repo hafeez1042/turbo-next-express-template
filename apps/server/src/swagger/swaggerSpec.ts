@@ -5,7 +5,7 @@ const options: swaggerJsdoc.Options = {
   definition: {
     openapi: "3.0.0",
     info: {
-      title: "MAIProfile API with Swagger",
+      title: "API with Swagger",
       version: "1.0.0",
       description:
         "This is the CRUD API application made with ExpressJS and documented with Swagger",

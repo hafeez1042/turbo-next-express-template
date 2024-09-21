@@ -22,6 +22,14 @@ export interface IQueryStringParams {
 
   /** Optional. A cursor for cursor-based pagination. Typically, this is the identifier of the last item in the previous set of results. */
   cursor?: string;
+  /**
+   * Optional. To get all with joined data
+   */
+  expand?: boolean;
+  /**
+   * Optional. To include soft deleted items
+   */
+  deleted?: boolean;
 }
 
 export interface IFieldFilter {

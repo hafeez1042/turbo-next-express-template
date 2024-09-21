@@ -1,4 +1,4 @@
-import { S3Client as awsS3Client } from "@aws-sdk/client-s3";
+import { S3Client } from "@aws-sdk/client-s3";
 
 export const getS3Client = (
   region: string,
@@ -9,13 +9,13 @@ export const getS3Client = (
     ? {
         region: region,
         credentials: {
-          accessKeyId: accessKey,
-          secretAccessKey: secret,
+          accessKeyId: accessKey!,
+          secretAccessKey: secret!,
         },
       }
     : {
         region: region,
       };
 
-  return new awsS3Client(params);
+  return new S3Client(params);
 };
