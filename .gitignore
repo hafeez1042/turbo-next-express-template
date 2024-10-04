@@ -39,3 +39,4 @@ yarn-error.log*
 
 .test
 .idea
+*:Zone.Identifier
