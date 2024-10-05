@@ -52,7 +52,7 @@ export abstract class BaseRepository<T extends IVersionedBaseAttributes>
   async getAllWithCursor(
     query: IQueryStringParams,
     cursorComparison: "lt" | "gt" = "gt"
-  ): Promise<{ items: T[]; nextCursor: string | null }> {
+  ): Promise<{ items: T[]; nextCursor: number | null }> {
     const sequelizeQuery = generateSequelizeQuery(query, this.getSearchQuery);
     const whereOptions = sequelizeQuery?.where || {};
 
@@ -89,7 +89,7 @@ export abstract class BaseRepository<T extends IVersionedBaseAttributes>
   }
 
   async getById<TWithDetails = T>(
-    id: string,
+    id: number,
     included?: boolean
   ): Promise<TWithDetails | null> {
     const response = await this.model.findByPk(id, {
@@ -107,11 +107,8 @@ export abstract class BaseRepository<T extends IVersionedBaseAttributes>
     const transaction: Transaction = await this.model.sequelize!.transaction();
     try {
       // Set initial version and active flag
-      const item_id = uuidv4();
       (data as IVersionedBaseAttributes).version = 1;
       (data as IVersionedBaseAttributes).is_active = true;
-      (data as IVersionedBaseAttributes).id = item_id;
-      (data as IVersionedBaseAttributes).source_item_id = item_id;
       const response: Model<T, T> = await this.model.create(
         data as unknown as MakeNullishOptional<T>,
         { transaction }
@@ -124,7 +121,7 @@ export abstract class BaseRepository<T extends IVersionedBaseAttributes>
     }
   }
 
-  async update(id: string, data: Partial<T>): Promise<T | null> {
+  async update(id: number, data: Partial<T>): Promise<T | null> {
     const transaction: Transaction = await this.model.sequelize!.transaction();
     try {
       let entry = await this.model.findByPk(id, { transaction });
@@ -177,7 +174,7 @@ export abstract class BaseRepository<T extends IVersionedBaseAttributes>
     throw new Error("Update many not supported in versioned table");
   }
 
-  async delete(id: string, deletedBy?: string): Promise<void> {
+  async delete(id: number, deletedBy?: string): Promise<void> {
     const transaction: Transaction = await this.model.sequelize!.transaction();
     try {
       const entry = await this.model.findByPk(id);

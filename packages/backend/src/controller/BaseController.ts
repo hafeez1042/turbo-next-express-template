@@ -3,6 +3,7 @@ import { IAPIResponse, IQueryStringParams } from "@repo/types/lib/types";
 import { RequestHandler } from "express";
 import { v1Response } from "../utils/responseHandler";
 import { IBaseServices } from "../services/IBaseServices";
+import { BadRequestError } from "../errors/BadRequestError";
 
 export abstract class BaseController<T> implements ICRUDController<T> {
   protected services: IBaseServices<T>;
@@ -20,7 +21,7 @@ export abstract class BaseController<T> implements ICRUDController<T> {
     req,
     res
   ) => {
-    const data = await this.services.getById(req.params.id);
+    const data = await this.services.getById(this.getId(req.params.id));
     return res.json(v1Response(data));
   };
 
@@ -38,7 +39,10 @@ export abstract class BaseController<T> implements ICRUDController<T> {
     req,
     res
   ) => {
-    const data = await this.services.update(req.params.id, req.body);
+    const data = await this.services.update(
+      this.getId(req.params.id),
+      req.body
+    );
     return res.json(v1Response(data));
   };
 
@@ -46,7 +50,16 @@ export abstract class BaseController<T> implements ICRUDController<T> {
     req,
     res
   ) => {
-    await this.services.delete(req.params.id);
+    await this.services.delete(this.getId(req.params.id));
     return res.json(v1Response());
   };
+
+  protected getId(id: string) {
+    const _id = Number(id);
+    if (isNaN(_id)) {
+      throw new BadRequestError("invalid id");
+    }
+
+    return _id;
+  }
 }

@@ -1,12 +1,12 @@
 import { IQueryStringParams } from "@repo/types/lib/types";
 
-export interface IBaseRepository<T, I = string, TCreate = T, TUpdate = T> {
+export interface IBaseRepository<T, I = number, TCreate = T, TUpdate = T> {
   getAll(queryParams: Omit<IQueryStringParams, "cursor">): Promise<T[]>;
 
   getAllWithCursor(
     queryParams: IQueryStringParams,
     cursorComparison: "lt" | "gt"
-  ): Promise<{ items: T[]; nextCursor: string | null }>;
+  ): Promise<{ items: T[]; nextCursor: number | null }>;
 
   getById(id: I): Promise<T | null>;
 

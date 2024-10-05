@@ -50,7 +50,7 @@ export abstract class BaseRepository<T extends IBaseAttributes>
   async getAllWithCursor(
     query: IQueryStringParams,
     cursorComparison: "lt" | "gt" = "gt"
-  ): Promise<{ items: T[]; nextCursor: string | null }> {
+  ): Promise<{ items: T[]; nextCursor: number | null }> {
     const sequelizeQuery = generateSequelizeQuery(query, this.getSearchQuery);
     const whereOptions = sequelizeQuery?.where || {};
 

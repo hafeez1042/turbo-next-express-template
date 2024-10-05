@@ -5,9 +5,9 @@ export interface IBaseServices<T> {
 
   create(data: T): Promise<T>;
 
-  getById(id: string): Promise<T>;
+  getById(id: number): Promise<T>;
 
-  update(id: string, data: Partial<T>): Promise<T>;
+  update(id: number, data: Partial<T>): Promise<T>;
 
-  delete(id: string): Promise<void>;
+  delete(id: number): Promise<void>;
 }

@@ -20,18 +20,18 @@ export class BaseServices<T> implements IBaseServices<T> {
     return item;
   };
 
-  getById = async (id: string) => {
+  getById = async (id: number) => {
     const item = await this.repository.getById(id);
     if (!item) throw new NotFoundError();
     return item;
   };
-  update = async (id: string, data: Partial<T>) => {
+  update = async (id: number, data: Partial<T>) => {
     const item = await this.repository.update(id, data);
     if (!item) throw new NotFoundError();
     return item;
   };
 
-  delete = async (id: string) => {
+  delete = async (id: number) => {
     await this.repository.delete(id);
     return;
   };

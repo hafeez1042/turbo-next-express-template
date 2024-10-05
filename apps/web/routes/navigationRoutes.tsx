@@ -1,52 +1,33 @@
 import { ReactNode } from "react";
-import { PathName } from "./types";
+import { INavigationRoutes, PathName } from "./types";
 
 import {
   Home,
   LineChart,
   Package,
-  ShoppingCart,
-  Users2,
-  Settings
+  Settings,
 } from "lucide-react";
 
 export const navigationRoutes: INavigationRoutes[] = [
   {
     icon: <Home className="h-5 w-5" />,
     label: "Dashboard",
-    path: "/",
-  },
-  {
-    icon: <ShoppingCart className="h-5 w-5" />,
-    label: "Orders",
-    path: "/",
+    path: "/dashboard",
   },
   {
     icon: <Package className="h-5 w-5" />,
-    label: "Products",
-    path: "/",
-  },
-  {
-    icon: <Users2 className="h-5 w-5" />,
-    label: "Customers",
-    path: "/",
+    label: "Projects",
+    path: "/projects",
   },
   {
     icon: <LineChart className="h-5 w-5" />,
-    label: "Analytics",
-    path: "/",
+    label: "Reports",
+    path: "/reports",
   },
 ];
 
 export const settingsRoute: INavigationRoutes = {
   icon: <Settings className="h-5 w-5" />,
   label: "Settings",
-  path: "/",
+  path: "/settings",
 };
-
-export interface INavigationRoutes {
-  icon: ReactNode;
-  label: string;
-  path: PathName;
-}
-
