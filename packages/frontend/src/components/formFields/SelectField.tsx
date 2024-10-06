@@ -27,7 +27,11 @@ export const SelectField: React.FC<IProps> = (props) => {
       render={({ field }) => (
         <FormItem className={props.className || ""}>
           {props.label && <FormLabel>{props.label}</FormLabel>}
-          <Select onValueChange={field.onChange} defaultValue={field.value}>
+          <Select
+            onValueChange={field.onChange}
+            defaultValue={field.value}
+            disabled={props.isFetching || props.readOnly}
+          >
             <FormControl>
               <SelectTrigger>
                 <SelectValue placeholder={props.placeholder} />
@@ -59,4 +63,6 @@ interface IProps {
   placeholder?: string;
   options: IOption[];
   className?: string;
+  readOnly?: boolean;
+  isFetching?: boolean;
 }

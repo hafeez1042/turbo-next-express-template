@@ -17,14 +17,11 @@ import {
   TableHeader,
   TableRow,
 } from "@repo/frontend/components/ui/table";
-import { useQuery } from "../../../../hooks/useQuery";
-import { projectServices } from "../../../../services/projectServices";
 import Link from "next/link";
+import { useProjectsContext } from "../ProjectsProvider";
 
 export const ProjectsTable: React.FC<IProps> = (props) => {
-  const [projects] = useQuery(projectServices.getAll, [], {
-    defaultValue: [],
-  });
+  const { projects } = useProjectsContext();
   return (
     <div>
       <Table>
@@ -43,7 +40,11 @@ export const ProjectsTable: React.FC<IProps> = (props) => {
         <TableBody>
           {projects.map((project) => (
             <TableRow key={project.id}>
-              <TableCell className="font-medium"><Link href={`/projects/${project.id}/tasks`}>{project.name}</Link></TableCell>
+              <TableCell className="font-medium">
+                <Link href={`/projects/${project.id}/tasks`}>
+                  {project.name}
+                </Link>
+              </TableCell>
               <TableCell>
                 <Badge variant="outline">{project.status}</Badge>
               </TableCell>
