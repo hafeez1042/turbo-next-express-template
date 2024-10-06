@@ -86,7 +86,7 @@ export const DatePicker: React.FC<IDatePickerProps> = (props) => {
         </PopoverTrigger>
       </div>
 
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent className="w-auto p-0" align="start" portal={false}>
         <Calendar
           mode="single"
           selected={
