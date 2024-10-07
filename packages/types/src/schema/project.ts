@@ -3,7 +3,7 @@ import { IBaseAttributes, ISoftDeleteAttributes } from "../types.sql";
 export interface IProject extends IBaseAttributes, ISoftDeleteAttributes {
   name: string;
   slug: string;
-  client: string;
+  client_id: number;
   description?: string;
   status: ProjectStatusEnum;
   priority?: number;

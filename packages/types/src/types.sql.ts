@@ -3,8 +3,8 @@ export interface IVersionedBaseAttributes
     IVersionAttributes {}
 
 export interface IBaseAttributes<I = number> {
-  created_by?: string;
-  updated_by?: string;
+  created_by?: number;
+  updated_by?: number;
   id?: I;
   created_at?: Date;
   updated_at?: Date;

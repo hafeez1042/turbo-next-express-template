@@ -1,23 +1,26 @@
 import { SelectField } from "@repo/frontend/components/formFields/SelectField";
 import { Form } from "@repo/frontend/components/ui/form";
-import { ProjectStatusEnum } from "@repo/types/lib/schema/project";
+import { TaskStatusEnum } from "@repo/types/lib/schema/task"; // Adjust this import based on your path
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import React from "react";
 import { z } from "zod";
 import { InputField } from "@repo/frontend/components/formFields/InputField";
 import { TextAreaField } from "@repo/frontend/components/formFields/TextAreaField";
-import { useSaveButton } from "../../../../hooks/useSaveButton";
 import { DatePickerField } from "@repo/frontend/components/formFields/DatePickerField";
+import { useSaveButton } from "../../../../../../hooks/useSaveButton";
 
-export const ProjectForm: React.FC<IProps> = (props) => {
+export const TaskForm: React.FC<IProps> = (props) => {
   const { saveButton } = useSaveButton();
   const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {},
   });
 
-  const onSubmit = () => {};
+  const onSubmit = (data: any) => {
+    console.log(data);
+    // Implement save logic here
+  };
 
   return (
     <div className="max-h-[calc(100vh-140px)] overflow-y-auto w-[calc(100%+40px)] pr-[32px]">
@@ -27,8 +30,8 @@ export const ProjectForm: React.FC<IProps> = (props) => {
             <div className="mb-6 space-y-4">
               <InputField
                 className="w-full"
-                label="Project Name *"
-                placeholder="Project name"
+                label="Task Name *"
+                placeholder="Task name"
                 name="name"
                 form={form}
               />
@@ -61,16 +64,34 @@ export const ProjectForm: React.FC<IProps> = (props) => {
                 name={"status"}
                 form={form}
                 placeholder="Status"
-                options={[]}
+                options={taskSTatusAsOptions}
                 label="Status *"
               />
             </div>
             <div className="mb-6 space-y-4">
               <InputField
                 className="w-full"
-                label="Slug *"
-                placeholder="Slug"
-                name="slug"
+                label="Priority *"
+                placeholder="Priority (1-10)"
+                name="priority"
+                form={form}
+              />
+            </div>
+            <div className="mb-6 space-y-4">
+              <InputField
+                className="w-full"
+                label="Assigned To ID *"
+                placeholder="Assigned to user ID"
+                name="assigned_to_id"
+                form={form}
+              />
+            </div>
+            <div className="mb-6 space-y-4">
+              <InputField
+                className="w-full"
+                label="Tech Stack ID *"
+                placeholder="Tech Stack ID"
+                name="tech_stack_id"
                 form={form}
               />
             </div>
@@ -86,15 +107,23 @@ export const ProjectForm: React.FC<IProps> = (props) => {
 interface IProps {}
 
 const FormSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  slug: z.string().min(1, "Slug is required"),
+  name: z.string().min(1, "Task Name is required"),
   description: z.string().optional(),
-  status: z.nativeEnum(ProjectStatusEnum, {
+  status: z.nativeEnum(TaskStatusEnum, {
     required_error: "Status is required",
   }),
-  priority: z.number().min(1, "Priority must be greater than 0").optional(),
-  rms_id: z.string().optional(),
-  start_date: z.date(),
+  priority: z.number().min(1, "Priority must be greater than 0"),
+  assigned_to_id: z.number().min(1, "Assigned To ID is required"),
+  tech_stack_id: z.number().min(1, "Tech Stack ID is required"),
+  start_date: z.date().optional(),
   end_date: z.date().optional(),
-  manager_id: z.number().min(1, "Manager ID is required"),
 });
+
+const taskSTatusAsOptions = [
+  { label: "Not Started", value: TaskStatusEnum.NOT_STARTED },
+  { label: "In Progress", value: TaskStatusEnum.IN_PROGRESS },
+  { label: "Completed", value: TaskStatusEnum.COMPLETED },
+  { label: "On Hold", value: TaskStatusEnum.ON_HOLD },
+  { label: "Cancelled", value: TaskStatusEnum.CANCELLED },
+  { label: "Blocked", value: TaskStatusEnum.BLOCKED },
+];
