@@ -1,7 +1,6 @@
-import { ReactNode } from "react";
 import { INavigationRoutes, PathName } from "./types";
 
-import { Settings, ListTodo } from "lucide-react";
+import { Settings, ListTodo, Users } from "lucide-react";
 
 export const getProjectNavigationRoutes = (
   projectId: string
@@ -10,6 +9,11 @@ export const getProjectNavigationRoutes = (
     icon: <ListTodo className="h-5 w-5" />,
     label: "Tasks",
     path: `/projects/${projectId}/tasks` as PathName,
+  },
+  {
+    icon: <Users className="h-5 w-5" />,
+    label: "Members",
+    path: `/projects/${projectId}/members` as PathName,
   },
   {
     icon: <Settings className="h-5 w-5" />,

@@ -1,19 +1,13 @@
-export interface IRole {
-  _id: string;
-  name: RolesEnum;
-  permissions: string[];
-}
+import { IBaseAttributes } from "../types.sql";
 
-export enum RolesEnum {
-  ADMIN = "ADMIN",
-  USER = "USER"
-}
-
-export interface IPermission {
+export interface IRole extends IBaseAttributes {
   name: string;
-  create?: boolean;
-  read?: boolean;
-  update?: boolean;
-  delete?: boolean;
-  list?: boolean;
+  description: string;
 }
+
+export interface IRolePermission extends IBaseAttributes {
+  role_id: number;
+  permission: PermissionsEnum;
+}
+
+export enum PermissionsEnum {}

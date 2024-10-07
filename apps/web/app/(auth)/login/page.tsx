@@ -1,4 +1,6 @@
+import { LoginPageContent } from "./LoginPageContent";
+
 const Page: React.FC = () => {
-  return (<div>Login Page</div>)
+  return (<LoginPageContent />)
 }
 export default Page;

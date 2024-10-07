@@ -1,7 +1,6 @@
 "use client";
 import React from "react";
 import { Menu } from "lucide-react";
-
 import { Button } from "@repo/frontend/components/ui/button";
 import {
   Sheet,
@@ -9,12 +8,11 @@ import {
   SheetTrigger,
 } from "@repo/frontend/components/ui/sheet";
 import { NavItemMobile } from "./NavItem";
-import { useParams, usePathname } from "next/navigation";
-import { getProjectNavigationRoutes } from "../../../../routes/projectNavigationRoutes";
+import { usePathname } from "next/navigation";
+import { INavigationRoutes } from "../../../../routes/types";
 
-export const MobileNav: React.FC = () => {
+export const MobileNav: React.FC<IProps> = (props) => {
   const pathName = usePathname();
-  const { projectId } = useParams();
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -25,7 +23,7 @@ export const MobileNav: React.FC = () => {
       </SheetTrigger>
       <SheetContent side="left" className="flex flex-col">
         <nav className="grid gap-2 text-lg font-medium">
-          {getProjectNavigationRoutes(projectId as string).map((item) => (
+          {props.navRoutes.map((item) => (
             <NavItemMobile
               icon={item.icon}
               label={item.label}
@@ -38,3 +36,7 @@ export const MobileNav: React.FC = () => {
     </Sheet>
   );
 };
+
+interface IProps {
+  navRoutes: INavigationRoutes[];
+}

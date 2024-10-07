@@ -1,16 +1,16 @@
 "use client"
 import React, { PropsWithChildren } from "react";
 import { LeftNavLayout } from "../../../../components/leftNavLayout/LeftNavLayout";
-import { getProjectNavigationRoutes } from "../../../../routes/projectNavigationRoutes";
 import { useParams } from "next/navigation";
+import { getClientNavigationRoutes } from "../../../../routes/clientNavigationRoutes";
 
 const Layout: React.FC<PropsWithChildren> = (props) => {
-  const { projectId } = useParams();
+  const { clientId } = useParams();
 
   return (
     <LeftNavLayout
-      header="Project Name"
-      navRoutes={getProjectNavigationRoutes(projectId as string)}
+      header="Client Name"
+      navRoutes={getClientNavigationRoutes(clientId as string)}
     >
       {props.children}
     </LeftNavLayout>

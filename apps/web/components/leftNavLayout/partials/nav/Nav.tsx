@@ -2,19 +2,18 @@
 import React from "react";
 
 import { NavItem } from "./NavItem";
-import { useParams, usePathname } from "next/navigation";
-import { getProjectNavigationRoutes } from "../../../../routes/projectNavigationRoutes";
+import { usePathname } from "next/navigation";
+import { INavigationRoutes } from "../../../../routes/types";
 
 export const Nav: React.FC<IProps> = (props) => {
   const pathName = usePathname();
-  const { projectId } = useParams();
 
   return (
     <div className="hidden border-r bg-muted/40 md:block pt-4">
       <div className="flex h-full max-h-screen flex-col gap-2">
         <div className="flex-1">
           <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
-            {getProjectNavigationRoutes(projectId as string).map((item) => (
+            {props.navRoutes.map((item) => (
               <NavItem
                 icon={item.icon}
                 label={item.label}
@@ -30,4 +29,7 @@ export const Nav: React.FC<IProps> = (props) => {
   );
 };
 
-interface IProps {}
+interface IProps {
+  navRoutes: INavigationRoutes[]
+
+}
