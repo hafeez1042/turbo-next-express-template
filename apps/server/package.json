@@ -9,7 +9,10 @@
     "test": "jest",
     "test:watch": "jest --watchAll",
     "lint": "eslint .",
-    "lint:fix": "eslint --fix ."
+    "lint:fix": "eslint --fix .",
+    "migration:gen": "sequelize migration:create --migrations-path ./sequelize/migrations/ --name",
+    "migration:run": "sequelize db:migrate --migrations-path sequelize/migrations"
+
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.511.0",

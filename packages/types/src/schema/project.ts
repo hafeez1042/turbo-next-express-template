@@ -10,7 +10,6 @@ export interface IProject extends IBaseAttributes, ISoftDeleteAttributes {
   priority?: number;
   start_date?: Date;
   end_date?: Date;
-  manager_id: number;
   program_id?: number;
   overhead?: string;
   technology_id?: number;

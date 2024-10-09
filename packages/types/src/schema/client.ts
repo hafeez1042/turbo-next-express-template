@@ -1,6 +1,6 @@
 import { IBaseAttributes, ISoftDeleteAttributes } from "../types.sql";
 
-export interface IClient extends IBaseAttributes<string>, ISoftDeleteAttributes {
+export interface IClient extends IBaseAttributes, ISoftDeleteAttributes {
   code: string;
   name: string;
   slug: string;
