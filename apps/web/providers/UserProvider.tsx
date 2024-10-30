@@ -6,7 +6,6 @@ import React, { PropsWithChildren, useContext, useMemo, useState } from "react";
 import { PageLoader } from "@repo/frontend/components/PageLoader";
 import { useQuery } from "../hooks/useQuery";
 import { ICurrentUser } from "../types";
-import { getDataFromAPIResponse } from "../utils/getDataFromAPIResponse";
 
 export const userContext = React.createContext<IUserContext>({
   user: undefined,
