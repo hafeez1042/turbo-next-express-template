@@ -1,1 +1,0 @@
-module.exports = require('@repo/frontend/postcss.config');
