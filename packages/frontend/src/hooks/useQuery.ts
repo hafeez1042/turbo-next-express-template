@@ -1,10 +1,16 @@
-import { DependencyList, useEffect, useState, useRef, useCallback } from "react";
+import {
+  DependencyList,
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
 import * as localForage from "localforage";
 interface IOptions<
   T,
   R = T,
   P extends unknown[] = unknown[],
-  E extends Error = Error
+  E extends Error = Error,
 > {
   callback?: DataMutator<R>;
   mutator?: (data: T) => R;
@@ -27,7 +33,7 @@ export const useQuery = <
   T,
   R = T,
   P extends unknown[] = [],
-  E extends Error = Error
+  E extends Error = Error,
 >(
   promiseFunction: ((...args: P) => Promise<T>) | (() => Promise<T>),
   deps: DependencyList,
@@ -50,11 +56,11 @@ export const useQuery = <
   const [data, setData] = useState<R | undefined>(defaultValue);
   const [error, setError] = useState<E>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const timeIntervalRef = useRef<any>();
+  const timeIntervalRef = useRef<any>(null);
 
   // Track if the component is mounted
   const isMounted = useRef(true);
-  
+
   // Define fetchData outside useEffect for reusability
   const fetchData = async (skipCache?: boolean, silent?: boolean) => {
     if (!condition || !isMounted.current) {
@@ -71,9 +77,7 @@ export const useQuery = <
       }
       if (!responseData) {
         // If there's no valid cached data, fetch new data
-        const promise = params
-          ? promiseFunction(...params)
-          : promiseFunction();
+        const promise = params ? promiseFunction(...params) : promiseFunction();
 
         if (mutator) {
           responseData = await promise.then(mutator);
@@ -110,10 +114,10 @@ export const useQuery = <
       setData(undefined);
     }
     prevDeps.current = deps;
-    
+
     // Set component as mounted
     isMounted.current = true;
-    
+
     // Initial data fetch
     fetchData().catch(console.error);
 
@@ -131,10 +135,12 @@ export const useQuery = <
   }, [cacheKey, refreshInterval, ttl, ...deps]);
 
   // Memoize the refetch function to prevent unnecessary re-renders when passing it as a prop
-  const refetch = useCallback(async (silent?: boolean) => {
-    await fetchData(true, silent);
-  }, [fetchData]);
-  
+  const refetch = useCallback(
+    async (silent?: boolean) => {
+      await fetchData(true, silent);
+    },
+    [fetchData]
+  );
 
   return [data, isLoading, error, refetch];
 };

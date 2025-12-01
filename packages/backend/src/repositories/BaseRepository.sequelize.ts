@@ -1,11 +1,4 @@
-import {
-  Model,
-  Transaction,
-  Op,
-  WhereOptions,
-  DatabaseError,
-  Includeable,
-} from "sequelize";
+import { Model, Transaction, Op, WhereOptions, DatabaseError } from "sequelize";
 import { MakeNullishOptional } from "sequelize/types/utils";
 
 import { IQueryStringParams } from "@repo/types/lib/types";
@@ -18,14 +11,9 @@ import { InternalServerError } from "../errors/InternalServerError";
 import { IBaseRepository } from "./IBaseRepository";
 
 export abstract class BaseRepository<T extends IBaseAttributes>
-  implements IBaseRepository<T, string>
+  implements IBaseRepository<T, number>
 {
   protected model: typeof Model & (new () => Model<T>);
-
-  protected getByIdIncludeable: Includeable[] = [];
-  protected findOneIncludeable: Includeable[] = [];
-  protected getAllIncludeable: Includeable[] = [];
-  protected historyIncludeable: Includeable[] = [];
 
   protected constructor(model: typeof Model & (new () => Model<T, T>)) {
     this.model = model;
@@ -36,9 +24,6 @@ export abstract class BaseRepository<T extends IBaseAttributes>
     const whereOptions = sequelizeQuery?.where || {};
 
     const results = await this.model.findAll({
-      include: this.getAllIncludeable.length
-        ? this.getAllIncludeable
-        : undefined,
       order: sequelizeQuery.order,
       where: {
         ...whereOptions,
@@ -64,9 +49,6 @@ export abstract class BaseRepository<T extends IBaseAttributes>
     }
 
     const results = await this.model.findAll({
-      include: this.getAllIncludeable.length
-        ? this.getAllIncludeable
-        : undefined,
       order: sequelizeQuery.order,
       where: whereOptions as WhereOptions<T>,
       limit: query.limit, // Limit should still be applied
@@ -83,20 +65,13 @@ export abstract class BaseRepository<T extends IBaseAttributes>
     };
   }
 
-  async getById<TWithDetails = T>(id: string): Promise<TWithDetails | null> {
-    const response = await this.model.findByPk(id, {
-      include: this.getByIdIncludeable.length
-        ? this.getByIdIncludeable
-        : undefined,
-    });
+  async getById(id: number): Promise<T | null> {
+    const response = await this.model.findByPk(id);
     return response ? getData(response) : null;
   }
 
   async findOne(query: IQueryStringParams): Promise<T | null> {
     const results = await this.model.findOne({
-      include: this.findOneIncludeable.length
-        ? this.findOneIncludeable
-        : undefined,
       ...generateSequelizeQuery(query, this.getSearchQuery),
     });
 
@@ -127,7 +102,7 @@ export abstract class BaseRepository<T extends IBaseAttributes>
   }
 
   async update(
-    id: string,
+    id: number,
     data: Partial<T>,
     upsert?: boolean
   ): Promise<T | null> {
@@ -164,7 +139,7 @@ export abstract class BaseRepository<T extends IBaseAttributes>
     });
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: number): Promise<void> {
     const transaction: Transaction = await this.model.sequelize!.transaction();
     try {
       const entry = await this.model.findByPk(id);
@@ -210,7 +185,7 @@ export abstract class BaseRepository<T extends IBaseAttributes>
     }
   }
 
-  async bulkUpdate(data: (Partial<T> & { id: string })[]) {
+  async bulkUpdate(data: (Partial<T> & { id: number })[]) {
     const transaction: Transaction = await this.model.sequelize!.transaction();
     try {
       const updatedEntries: T[] = [];
@@ -233,5 +208,4 @@ export abstract class BaseRepository<T extends IBaseAttributes>
   }
 
   abstract getSearchQuery: (searchText: string) => WhereOptions<T>;
-  
 }

@@ -1,7 +1,7 @@
 import { APIError } from "../errors/APIError";
 import { getHttp } from "./getHttp";
 import { getQueryParams } from "./getQueryParams";
-import { IAPIV1Response, IQueryStringParams } from "../types/lib/types";
+import { IAPIV1Response, IQueryStringParams } from "@repo/types/lib/types";
 import { IBaseServices } from "../types/IBaseServices";
 import { AxiosError, AxiosInstance } from "axios";
 

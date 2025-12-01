@@ -4,7 +4,7 @@ import { RequestHandler } from "express";
 import { v1Response } from "../utils/responseHandler";
 import { IBaseServices } from "../services/IBaseServices";
 import { BadRequestError } from "../errors/BadRequestError";
-import { ParamsDictionary } from "express-serve-static-core";
+import { ParamsDictionary } from "express";
 
 export abstract class BaseController<T> implements ICRUDController<T> {
   protected services: IBaseServices<T>;

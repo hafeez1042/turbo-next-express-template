@@ -26,7 +26,7 @@ export interface IBaseRepository<T, I = number, TCreate = T, TUpdate = T> {
 
   bulkCreate(data: Partial<T>[]): Promise<T[]>;
 
-  bulkUpdate(updateData: (Partial<T> & { id: string })[]): Promise<void>;
+  bulkUpdate(updateData: (Partial<T> & { id: I })[]): Promise<void>;
 
   bulkDelete(query: IQueryStringParams): Promise<any>;
 

@@ -1,6 +1,6 @@
 import { RequestHandler } from "express";
 import { IQueryStringParams, IAPIResponse } from "@repo/types/lib/types";
-import { ParamsDictionary } from "express-serve-static-core";
+import { ParamsDictionary } from "express";
 
 export interface ICRUDController<T = object, R = T, TCreate = T, TUpdate = T> {
   create?: RequestHandler<ParamsDictionary, IAPIResponse<R>, TCreate>;

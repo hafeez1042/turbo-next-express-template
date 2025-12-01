@@ -1,4 +1,4 @@
 packages:
-  - "frontends/*"
-  - "servers/*"
+  - "frontend/*"
   - "packages/*"
+  - "services/*"

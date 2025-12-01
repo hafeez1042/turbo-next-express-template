@@ -19,7 +19,7 @@ export const getHttp = (baseUrl: string, accessToken?: string) => {
 
       if (
         !token &&
-        !config.baseURL.startsWith(`${process.env.NEXT_PUBLIC_API_SERVER}/auth`) &&
+        !config.baseURL?.startsWith(`${process.env.NEXT_PUBLIC_API_SERVER}/auth`) &&
         window.location.pathname !== "/login"
       ) {
         window.location.href = "/login";

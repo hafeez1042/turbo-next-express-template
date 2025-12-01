@@ -33,20 +33,27 @@ export interface IQueryStringParams {
 }
 
 export interface IFieldFilter {
-  [field: string]: {
-    startsWith?: string;
-    contains?: string;
-    endsWith?: string;
-    eq?: valueType;
-    neq?: valueType;
-    lt?: number | null | Date;
-    lte?: number | null | Date;
-    gt?: number | null | Date;
-    gte?: number | null | Date;
-    in?: valueType[];
-    nin?: valueType[];
-    // Add more filter options as needed
-  };
+  [field: string]: IFilterConditions;
+}
+
+export interface IFilerORANDConditions {
+  or?: IFieldFilter[];
+  and?: IFieldFilter[];
+}
+
+export interface IFilterConditions {
+  startsWith?: string;
+  contains?: string;
+  endsWith?: string;
+  eq?: valueType;
+  neq?: valueType;
+  lt?: number | null | Date;
+  lte?: number | null | Date;
+  gt?: number | null | Date;
+  gte?: number | null | Date;
+  in?: valueType[];
+  nin?: valueType[];
+  // Add more filter options as needed
 }
 
 type valueType<T = unknown> = string | number | boolean | null | T;
@@ -69,9 +76,6 @@ export interface IOption {
 
   [key: string]: number | string | boolean;
 }
-
-
-
 
 export interface IAPIResponse<D = object[] | object> {
   version?: string;

@@ -1,4 +1,8 @@
-import { IFilerORANDConditions, IFilterConditions, IQueryStringParams } from "@repo/types/lib/types";
+import {
+  IFilerORANDConditions,
+  IFilterConditions,
+  IQueryStringParams,
+} from "@repo/types/lib/types";
 
 export const getQueryParams = ({
   limit,
@@ -7,8 +11,7 @@ export const getQueryParams = ({
   orderBy,
   order,
   cursor,
-  custom,
-}: IQueryStringParams) => {  
+}: IQueryStringParams) => {
   const queryParams: any = {
     filter,
   };
@@ -32,15 +35,12 @@ export const getQueryParams = ({
 
   for (const key in filter) {
     if (filter.hasOwnProperty(key)) {
-      let filterObj = filter[key];
+      let filterObj: IFilterConditions = filter[key];
       if (!filterObj) continue;
 
-      if(key === "or" || key === "and") {
-        filterObj = filterObj as IFilerORANDConditions;
-        return
+      if (key === "or" || key === "and") {
+        return;
       }
-
-      filterObj = filterObj as IFilterConditions
 
       if (filterObj.startsWith) {
         queryParams.filter[key] = { startsWith: filterObj.startsWith };
@@ -57,7 +57,6 @@ export const getQueryParams = ({
       }
     }
   }
-  queryParams.custom = custom;
 
   return `query=${encodeURIComponent(JSON.stringify(queryParams))}`;
 };
