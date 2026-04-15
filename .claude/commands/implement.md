@@ -41,13 +41,16 @@ the full ticket details. Use those details as the input to Phase 2.
 
 ## Phase 1B — Plain description (no ticket)
 
-Do not search existing stories. Do not create a Jira ticket.
+Do not search existing stories. Go straight to story creation.
 
-Add a tracking entry to `.ai/stories.md`:
-- Generate a local ID: `LOCAL-{YYYY-MM-DD}-{slug}` from the description
-- Append: `| LOCAL-... | {short title} | In Progress | Story | — | {today} |`
+Invoke **/story "{description}"** — this will:
+1. Draft a user story using `.ai/helpers/user-story-strcuture.md`
+2. Run review cycles with the user until approved
+3. Create the story in Jira and return the new ticket key
+4. Add a row to `.ai/stories.md`
 
-Use the description as-is as input to Phase 2.
+Use the returned ticket key and story details as the input to Phase 2.
+From this point, Phase 1B and Phase 1A are identical.
 
 ---
 
@@ -196,8 +199,16 @@ push, and PR creation.
 
 After /commit-pr completes, print the PR URL.
 
-If a Jira ticket was used (Phase 1A), update its row in `.ai/stories.md`
-with the latest status from Jira.
+**Mark the story as Done in both places:**
+
+1. Jira — call `transitionJiraIssue` to move the ticket to Done status:
+   - First call `getTransitionsForJiraIssue` to find the correct transition ID for "Done"
+   - Then call `transitionJiraIssue` with that ID
+   - Print: `✅ Jira {TICKET-ID} marked as Done`
+
+2. Local replica — update `.ai/stories.md`: change the Status cell for
+   this ticket's row from its current value to `Done`. Write the file.
+   Print: `✅ Local replica updated → Done`
 
 ---
 
@@ -205,11 +216,12 @@ with the latest status from Jira.
 
 ```
 /implement
-  ├── /story          (Phase 1A — fetch/sync Jira ticket)
+  ├── /story          (Phase 1A — fetch/sync existing Jira ticket)
+  ├── /story          (Phase 1B — draft → review → create in Jira)
   ├── subagent        (Phase 2  — codebase exploration)
   ├── /scaffold ×N    (Phase 4  — new entity boilerplate)
   ├── /review         (Phase 4  — silent validation while writing)
-  └── /commit-pr      (Gate 3   — commit + PR)
+  └── /commit-pr      (Gate 3   — commit + PR + mark Done in Jira + replica)
 ```
 
 Each of these skills can also be used independently without /implement.
