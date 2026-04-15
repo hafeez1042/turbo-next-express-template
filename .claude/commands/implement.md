@@ -1,223 +1,215 @@
-# /implement — Feature Implementation Skill
+# /implement — Feature Implementation Orchestrator
 
-Implements a feature from a Jira ticket ID or a plain description.
-Orchestrates a review-gated workflow: analyse → approve → implement →
-local review → commit → PR. Never commits without explicit user approval.
-
-> **Why this is a skill, not an agent**: This workflow has three user
-> approval gates that require multi-turn conversation with persistent state.
-> An agent is single-shot and cannot resume between gates. The skill runs
-> in the current session and naturally pauses for your input at each gate.
-> Heavy codebase analysis is delegated to a subagent to keep your context clean.
-
----
-
-## Step 0 — Parse input
-
-$ARGUMENTS is either:
-- A Jira ticket key (`PROJ-123`) → **Scenario A**
-- A plain feature description → **Scenario B**
-- The phrase "check stories" or "check existing" + description → **Scenario C**
-
-Detect ticket key: matches `^[A-Z][A-Z0-9]+-\d+$`
-
----
-
-## SCENARIO A — Implement by Jira ticket ID
-
-### A1 — Fetch and sync
-
-1. Call `getJiraIssue` with the ticket key.
-2. Read `.ai/stories.md`.
-3. If a row with this ID exists → update the row (status, synced date).
-   If no row → append a new row.
-4. Write the updated `.ai/stories.md`.
-5. Print: `📋 {TICKET-ID}: {Title} [{Status}]`
-
-### A2 — Analyse
-
-Delegate codebase exploration to a subagent to keep the main context clean:
-
-> Subagent prompt: "Read CLAUDE.md, then search the codebase to understand
-> what files would need to be created or modified to implement: {ticket title
-> and description}. Return: list of entities to create, files to modify,
-> and any risks you spot. Be specific about file paths."
-
-Using the subagent findings plus the full Jira ticket, produce this plan:
+Orchestrates a review-gated feature implementation by composing focused skills.
+This skill owns: sequencing, approval gates, and worktree decisions.
+Everything else is delegated to dedicated skills.
 
 ```
-## Implementation Plan — {TICKET-ID}: {Title}
+/story      → fetch / create / sync Jira story
+/scaffold   → generate entity boilerplate
+/review     → check code against standards
+/commit-pr  → pre-commit review + commit + push + PR
+```
+
+> Why a skill, not an agent: this workflow has three user approval gates
+> requiring multi-turn conversation with persistent state. Agents are
+> single-shot and cannot resume between gates. Heavy codebase exploration
+> is delegated to a subagent to keep the main context clean.
+
+---
+
+## Step 0 — Parse input ($ARGUMENTS)
+
+| Input | Route |
+|-------|-------|
+| Ticket key `PROJ-123` | Phase 1A — fetch existing story |
+| Plain description | Phase 1B — implement directly, no story lookup |
+| Empty | Print usage and stop |
+
+Ticket key pattern: `^[A-Z][A-Z0-9]+-\d+$`
+
+---
+
+## Phase 1A — Story from Jira
+
+Invoke **/story {ticket-key}** from $ARGUMENTS.
+
+This fetches the ticket from Jira, syncs `.ai/stories.md`, and returns
+the full ticket details. Use those details as the input to Phase 2.
+
+---
+
+## Phase 1B — Plain description (no ticket)
+
+Do not search existing stories. Do not create a Jira ticket.
+
+Add a tracking entry to `.ai/stories.md`:
+- Generate a local ID: `LOCAL-{YYYY-MM-DD}-{slug}` from the description
+- Append: `| LOCAL-... | {short title} | In Progress | Story | — | {today} |`
+
+Use the description as-is as input to Phase 2.
+
+---
+
+## Phase 2 — Analyse
+
+Delegate codebase exploration to a subagent to protect main context:
+
+> Subagent task: "Read CLAUDE.md. Search the codebase for files that would
+> be created or modified to implement: [{requirements}]. Return specifically:
+> new entities needed, files to modify, and any risks (breaking changes,
+> missing migrations, etc.)."
+
+Combine the Jira ticket (or description) with the subagent findings.
+Produce the implementation plan:
+
+```
+## Implementation Plan — {ID}: {Title}
 
 ### What this delivers
 [2–3 sentences]
 
-### Entities / data changes
-| Entity | Action | Fields |
-|--------|--------|--------|
+### Entities / data
+| Entity | Action | Key fields |
+|--------|--------|------------|
 | Product | Create | name, price, category_id |
-| Category | Modify | add slug field |
 
-### Backend checklist
-- [ ] pnpm scaffold Product
-- [ ] Add category_id to Product model + migration note
+### Backend
+- [ ] /scaffold Product
+- [ ] /scaffold Category
 - [ ] ProductService.getByCategory() custom method
 
-### Frontend checklist
+### Frontend
 - [ ] frontend/web/services/product.service.ts
 - [ ] frontend/web/queries/useGetProduct.ts
-- [ ] frontend/web/app/products/page.tsx + ProductsPageContent.tsx
+- [ ] frontend/web/app/products/ page + PageContent
 
 ### Existing files to modify
-- services/core/src/routes/index.ts (route registration auto-handled by scaffold)
+- services/core/src/routes/index.ts (auto-handled by /scaffold)
 
 ### Risks
-- ⚠ MEDIUM — [specific risk with why]
-- ℹ LOW — [minor risk]
+- ⚠ MEDIUM — [specific risk]
+- ℹ LOW — [minor note]
 
 ### Assumptions
-- [anything inferred, not stated in ticket]
+- [anything inferred]
 ```
 
-### A3 — Plan approval gate ⛔ STOP
+---
 
-Ask:
+## Gate 1 — Plan approval ⛔ STOP
+
 > **Approve this plan?**
-> - `approve` → proceed
-> - `change: [what]` → revise plan
-> - `cancel` → stop
+> `approve` · `change: [what]` · `cancel`
 
-**On `change:`** — revise the plan. Before showing the revision, check if
-the requested change causes any cascading impact and flag it:
-> ⚠ Changing X will also affect Y — [reason]. Still want this?
+**On `change:`** — revise the plan. Check if the change has cascading impact:
+> ⚠ Changing X also affects Y — [reason]. Still want this?
+Return to Gate 1.
 
-Show the revised plan and return to A3.
+**On `cancel`** → stop.
 
-### A4 — Worktree check
+---
+
+## Phase 3 — Worktree check
 
 Look for explicit phrases in the conversation: "use worktree", "new branch",
-"separate branch", "in a worktree".
+"in a worktree", "separate branch".
 
-**Found** → `git worktree add ../{ticket-slug} -b feat/{ticket-slug}`
-and work in that path. Print: `🌿 feat/{ticket-slug}`
+**Found** →
+```bash
+git worktree add ../{slug} -b feat/{slug}
+```
+All subsequent file writes go into that worktree path.
+Print: `🌿 Working in worktree: feat/{slug}`
 
-**Not found** → work in current directory. No branch yet.
+**Not found** → work in current directory.
 Print: `📁 Working in current directory`
 
-### A5 — Implement
+---
 
-Order of operations:
-1. **Scaffold** — `pnpm scaffold {Entity}` for each new entity. Immediately
-   fill in all fields (type interface + model columns) — never leave TODO stubs.
-2. **Associations** — Sequelize associations if entities relate.
-3. **Custom logic** — service/repository methods beyond CRUD.
-4. **Frontend** — services, query/mutation hooks, page + PageContent.
-5. **Existing file edits** — modify files that already exist.
+## Phase 4 — Implement
 
-While implementing, silently apply `/review` checks to everything written.
-Fix any violations before reporting — do not expose internal correction cycles.
+Execute in this order:
+
+**1. New entities** — for each entity marked `Create` in the plan:
+```
+invoke /scaffold {EntityName}
+```
+After each scaffold, immediately fill in all fields — never leave TODO stubs.
+Fill the type interface (`packages/types/src/schema/*.ts`) and model columns
+(`services/core/src/models/*.model.ts`) based on the ticket requirements.
+
+**2. Associations** — if entities reference each other, add Sequelize
+associations to both model files.
+
+**3. Custom backend logic** — service or repository methods beyond CRUD.
+
+**4. Frontend** — create service files, query/mutation hooks, page + PageContent.
+
+**5. Existing file edits** — modify any files already identified in the plan.
+
+While writing, silently apply /review checks to every file. Fix violations
+before reporting — do not surface internal correction cycles to the user.
 
 ❌ Do not run `git add`, `git commit`, or `git push`.
 
-### A6 — Local review gate ⛔ STOP
+---
 
-Print:
+## Gate 2 — Local review ⛔ STOP
+
 ```
-## Changes Ready for Review
+## Changes Ready for Your Review
 
-**Ticket**: {TICKET-ID} — {Title}
+**{ID}**: {Title}
 
 ### Created
-- packages/types/src/schema/product.ts
-- [all new files...]
+- [list every new file with path]
 
 ### Modified
-- services/core/src/routes/index.ts
+- [list every modified file with what changed]
 
-### API routes
-  GET|POST         /api/v1/products
-  GET|PUT|DELETE   /api/v1/products/:id
+### API endpoints added
+  GET|POST         /api/v1/{plural}
+  GET|PUT|DELETE   /api/v1/{plural}/:id
 
-### ⚠ Still needed (manual)
-  - DB migration for: products table
-  - pnpm build to verify TypeScript
+### Still needed (manual steps)
+  ⚠ DB migration for: {table names}
+  ⚠ Run pnpm build to verify TypeScript
 
 ---
-Nothing has been committed. Review locally and let me know:
-- `approved` → I'll commit and create the PR
-- `change: [what]` → I'll make the change and ask you to review again
+Nothing has been committed. Review locally and tell me:
+· `approved` → I'll commit and open the PR
+· `change: [what]` → I'll make the change and ask you to review again
 ```
 
-**On `change:`** → make the changes, reprint the report, return to A6.
+**On `change:`** → make the changes. Reprint the report. Return to Gate 2.
 Never commit between cycles.
 
-### A7 — Commit and PR
+---
 
-1. Internally run `/review` on all changed files. Fix silently. Report count.
-2. `git add` each file by name (never `git add .`).
-3. Commit:
-   ```
-   feat({scope}): {description}
+## Gate 3 — Commit approval ⛔ STOP (only if Gate 2 response is `approved`)
 
-   {body}
+Invoke **/commit-pr {ticket-id-or-slug}**
 
-   Implements: {TICKET-ID}
-   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
-   ```
-4. Push + `gh pr create`. PR body includes ticket link + test checklist.
-5. Print PR URL in `<pr-created>` tags.
+This skill handles: pre-commit /review, named git add, commit message,
+push, and PR creation.
+
+After /commit-pr completes, print the PR URL.
+
+If a Jira ticket was used (Phase 1A), update its row in `.ai/stories.md`
+with the latest status from Jira.
 
 ---
 
-## SCENARIO B — Implement by plain description (no ticket ID)
+## Skill map (what this orchestrator calls)
 
-No story search. No Jira lookup. Just implement and track it.
-
-### B1 — Create a local tracking entry
-
-Generate a local placeholder ID: `LOCAL-{YYYY-MM-DD}-{slug}` (e.g. `LOCAL-2024-01-15-product-catalog`).
-
-Append a row to `.ai/stories.md`:
 ```
-| LOCAL-2024-01-15-product-catalog | {short title from description} | In Progress | Story | — | {today} |
+/implement
+  ├── /story          (Phase 1A — fetch/sync Jira ticket)
+  ├── subagent        (Phase 2  — codebase exploration)
+  ├── /scaffold ×N    (Phase 4  — new entity boilerplate)
+  ├── /review         (Phase 4  — silent validation while writing)
+  └── /commit-pr      (Gate 3   — commit + PR)
 ```
 
-Print: `📋 Tracking as LOCAL-2024-01-15-product-catalog`
-
-### B2 — Analyse
-
-Using only the description in $ARGUMENTS (no Jira fetch), produce the same
-plan format as A2. Use the subagent for codebase exploration.
-
-Then continue from **A3** (plan approval gate) through **A7** (commit + PR).
-
-At A7, if a real Jira ticket gets created later, the user can run
-`/implement {REAL-TICKET-ID}` which will sync and replace the LOCAL entry.
-
----
-
-## SCENARIO C — Check existing stories (explicit request only)
-
-Triggered when $ARGUMENTS contains "check stories", "check existing",
-"is there a story for", or similar explicit search intent.
-
-1. Read `.ai/stories.md` — show the full table.
-2. If a description is also given, highlight rows whose title is similar.
-3. Ask: "Is any of these what you're looking for?"
-   - `yes, {ID}` → fetch from Jira, continue as Scenario A from A2
-   - `no` → ask "Would you like to create a new story or just implement directly?"
-     - "create story" → draft story using `.ai/helpers/user-story-strcuture.md`,
-       review cycles, create in Jira via `createJiraIssue`, sync to `stories.md`,
-       continue from A2
-     - "implement directly" → continue as Scenario B
-
----
-
-## Hard rules
-
-- Never commit without the user typing `approved` (or equivalent clear approval)
-- Never create a worktree/branch unless the user explicitly asks
-- Always read existing files before modifying — never overwrite blindly
-- Always use `pnpm scaffold` for new entities — never write scaffold files from scratch
-- Always fill in scaffold TODOs before reporting implementation complete
-- If the ticket is a Bug type — skip scaffold, focus on the targeted fix
-- Delegate heavy file exploration to a subagent to avoid bloating main context
+Each of these skills can also be used independently without /implement.
