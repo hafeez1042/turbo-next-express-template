@@ -1,34 +1,21 @@
-# React Context Providers
+# React Context
 
-## Usage
-
-- **Do**: Use Context for global state that changes infrequently (theme, auth user).
-- **Don't**: Use Context for high-frequency updates (use a state management library like Zustand or Redux instead).
-
-## Implementation
-
-- **Do**: Create a custom provider component.
-- **Do**: Create a custom hook to consume the context.
-- **Don't**: Export the Context object directly; export the hook.
+Use for low-frequency global state (auth, theme, user session). For high-frequency updates use a state management library.
 
 ```typescript
-// Bad
-export const UserContext = createContext();
+const FooContext = createContext<FooContextType | undefined>(undefined);
 
-// Good
-const UserContext = createContext<UserContextType | undefined>(undefined);
-
-export const UserProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  ...
-  return <UserContext.Provider value={{ user, setUser }}>{children}</UserContext.Provider>;
+export const FooProvider = ({ children }: { children: ReactNode }) => {
+  const [state, setState] = useState<FooType | null>(null);
+  return <FooContext.Provider value={{ state, setState }}>{children}</FooContext.Provider>;
 };
 
-export const useUser = () => {
-  const context = useContext(UserContext);
-  if (context === undefined) {
-    throw new Error('useUser must be used within a UserProvider');
-  }
-  return context;
+export const useFoo = () => {
+  const ctx = useContext(FooContext);
+  if (!ctx) throw new Error("useFoo must be used within FooProvider");
+  return ctx;
 };
 ```
+
+- Never export the context object directly — export the hook and provider only
+- Providers mount in `app/layout.tsx` (root) or the nearest layout where they're needed

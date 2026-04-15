@@ -26,6 +26,8 @@
     "winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "eslint": "^9.39.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
     "@types/morgan": "^1.9.10",

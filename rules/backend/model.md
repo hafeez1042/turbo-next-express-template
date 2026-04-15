@@ -1,38 +1,9 @@
-# Database Models (Sequelize)
+# Sequelize Model
 
-## Definition
-
-- **Do**: Define models using `sequelize-typescript` decorators or standard `sequelize.define`.
-- **Do**: Use singular names for models (e.g., `User`, `Post`).
-- **Do**: Define table names explicitly if they don't follow the default pluralization.
-
-```typescript
-// Bad
-@Table({ tableName: "user_table" })
-class Users extends Model {}
-
-// Good
-@Table({ tableName: "users" })
-class User extends Model {}
-```
-
-## Associations
-
-- **Do**: Define associations clearly in the model.
-- **Do**: Use foreign keys with consistent naming (e.g., `userId`, `postId`).
-- **Don't**: Rely on implicit foreign key names if they are ambiguous.
-
-## Validation
-
-- **Do**: Use Sequelize validators for data integrity.
-- **Don't**: Rely solely on database constraints; validate at the application level too.
-
-```typescript
-// Good
-@Column({
-  validate: {
-    isEmail: true
-  }
-})
-email: string;
-```
+- Extend `Model<IEntity, EntityCreationAttributes>` and implement the interface
+- `CreationAttributes`: `Optional<IEntity, "id" | "created_at" | "updated_at">`
+- Always set `underscored: true`, `paranoid: true` (soft delete) in `Model.init` options
+- Explicit `tableName` (plural, snake_case)
+- All `IBaseAttributes` fields (`id`, `created_by`, `updated_by`, `created_at`, `updated_at`) and `ISoftDeleteAttributes` fields (`deleted_at`, `deleted_by`) must be declared in the class body and in `init`
+- Enum columns: `DataTypes.ENUM(...Object.values(FooEnum))`
+- See `src/models/user.model.ts` as the canonical reference

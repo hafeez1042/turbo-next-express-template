@@ -1,35 +1,23 @@
 # Next.js Folder Structure (App Router)
 
-## Organization
-
-- **Do**: Use the `app` directory for routes and pages.
-- **Do**: Colocate components, styles, and tests with their features if possible.
-
-### Recommended Structure
-
 ```
-src/
+frontend/web/
   app/
-    (auth)/       # Route groups
-      login/
-        page.tsx
-    dashboard/
-      components/
-        # all other components should be here that are specific to DashboardPageContent
-      layout.tsx
-      page.tsx    # Page component, only render DashboardPageContent
-      DashboardPageContent.tsx # Page content component
-    layout.tsx    # Root layout
-    page.tsx      # Home page
-  components/     # Shared components
-  lib/            # Utility functions and libraries
-  services/       # API services
-  styles/         # Global styles
-  queries/        # Data fetching query hooks using useQuery
-  mutations/      # Data mutation mutation hooks using useMutation
+    (group)/          # Route groups — no URL segment
+      feature/
+        page.tsx              # Minimal: metadata export + render FeaturePageContent
+        FeaturePageContent.tsx # Actual UI — "use client" if interactive
+        components/           # Components used only by this page
+    layout.tsx
+    page.tsx
+  components/         # Shared components across pages
+  services/           # *.service.ts — one per API resource
+  queries/            # useGet*.ts — read hooks
+  mutations/          # use*.ts — write hooks (create/update/delete)
+  lib/                # Utility functions
 ```
 
-## File Naming
-
-- **Do**: Follow Next.js conventions (`page.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx`).
-- **Do**: Use `kebab-case` for route directories.
+- Route directories: `kebab-case`
+- `page.tsx` only exports `metadata` and renders one `*PageContent` component — no logic
+- `*PageContent.tsx` contains the actual page UI and data-fetching hooks
+- `"use client"` only where needed (interactivity, hooks) — prefer server components for layout/static
