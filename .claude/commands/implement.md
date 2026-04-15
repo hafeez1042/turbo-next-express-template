@@ -1,314 +1,223 @@
-# /implement — Feature Implementation Agent
+# /implement — Feature Implementation Skill
 
-Implements a feature from a Jira ticket ID or a plain-language description.
-Follows a strict review-gate workflow: plan → user approval → implement →
-user review → commit → PR. Never commits without explicit approval.
+Implements a feature from a Jira ticket ID or a plain description.
+Orchestrates a review-gated workflow: analyse → approve → implement →
+local review → commit → PR. Never commits without explicit user approval.
+
+> **Why this is a skill, not an agent**: This workflow has three user
+> approval gates that require multi-turn conversation with persistent state.
+> An agent is single-shot and cannot resume between gates. The skill runs
+> in the current session and naturally pauses for your input at each gate.
+> Heavy codebase analysis is delegated to a subagent to keep your context clean.
 
 ---
 
-## Step 0 — Parse input and choose scenario
+## Step 0 — Parse input
 
-$ARGUMENTS contains either:
-- A Jira ticket key like `PROJ-123` → **Scenario A**
+$ARGUMENTS is either:
+- A Jira ticket key (`PROJ-123`) → **Scenario A**
 - A plain feature description → **Scenario B**
+- The phrase "check stories" or "check existing" + description → **Scenario C**
 
-Detect with: does $ARGUMENTS match the pattern `^[A-Z][A-Z0-9]+-\d+$`?
-- Yes → Scenario A
-- No → Scenario B
+Detect ticket key: matches `^[A-Z][A-Z0-9]+-\d+$`
 
 ---
 
 ## SCENARIO A — Implement by Jira ticket ID
 
-### A1 — Fetch ticket and sync local replica
+### A1 — Fetch and sync
 
-1. Call `getJiraIssue` with the ticket key from $ARGUMENTS.
-2. Check if `.ai/stories/{TICKET-ID}.md` exists (use Glob or Read).
-3. **If file does not exist** → create it using the format from `.ai/README.md`,
-   populating all fields from the Jira response. Print: `📋 Added to local replica.`
-4. **If file exists** → update `synced_at` and any changed fields (status, title).
-   Print: `🔄 Replica refreshed.`
+1. Call `getJiraIssue` with the ticket key.
+2. Read `.ai/stories.md`.
+3. If a row with this ID exists → update the row (status, synced date).
+   If no row → append a new row.
+4. Write the updated `.ai/stories.md`.
+5. Print: `📋 {TICKET-ID}: {Title} [{Status}]`
 
-### A2 — Analyse the ticket
+### A2 — Analyse
 
-Read the following before producing the analysis:
-- The full Jira ticket (already fetched)
-- The local replica file
-- `CLAUDE.md` (architecture and patterns)
-- Any existing files that the implementation will touch (search by entity name,
-  route path, or component name mentioned in the ticket)
+Delegate codebase exploration to a subagent to keep the main context clean:
 
-Then produce this structured analysis:
+> Subagent prompt: "Read CLAUDE.md, then search the codebase to understand
+> what files would need to be created or modified to implement: {ticket title
+> and description}. Return: list of entities to create, files to modify,
+> and any risks you spot. Be specific about file paths."
+
+Using the subagent findings plus the full Jira ticket, produce this plan:
 
 ```
 ## Implementation Plan — {TICKET-ID}: {Title}
 
-### What this ticket requires
-[2–4 sentences describing the feature in plain terms]
+### What this delivers
+[2–3 sentences]
 
 ### Entities / data changes
-| Entity | Action | Notes |
-|--------|--------|-------|
-| Product | Create | New entity, needs scaffold |
-| Category | Create | Referenced by Product |
-| User | Modify | Add `role` field |
+| Entity | Action | Fields |
+|--------|--------|--------|
+| Product | Create | name, price, category_id |
+| Category | Modify | add slug field |
 
-### Backend changes
-- [ ] scaffold Product (pnpm scaffold Product)
-- [ ] scaffold Category
-- [ ] Add `category_id` FK to Product model + migration
-- [ ] Custom method: ProductService.getByCategory()
+### Backend checklist
+- [ ] pnpm scaffold Product
+- [ ] Add category_id to Product model + migration note
+- [ ] ProductService.getByCategory() custom method
 
-### Frontend changes
-- [ ] frontend/web/services/product.service.ts (new)
-- [ ] frontend/web/queries/useGetProduct.ts (new)
-- [ ] frontend/web/app/products/page.tsx (new)
-- [ ] frontend/web/app/products/ProductsPageContent.tsx (new)
+### Frontend checklist
+- [ ] frontend/web/services/product.service.ts
+- [ ] frontend/web/queries/useGetProduct.ts
+- [ ] frontend/web/app/products/page.tsx + ProductsPageContent.tsx
 
-### Files that will be modified (existing)
-- services/core/src/routes/index.ts (route registration)
+### Existing files to modify
+- services/core/src/routes/index.ts (route registration auto-handled by scaffold)
 
 ### Risks
-- ⚠ MEDIUM — Adding category_id to products requires a DB migration with
-  a default value or nullable constraint — data loss risk if existing rows
-  exist without a category
-- ℹ LOW — No breaking changes to existing API endpoints
+- ⚠ MEDIUM — [specific risk with why]
+- ℹ LOW — [minor risk]
 
 ### Assumptions
-- [List anything inferred that the ticket did not explicitly state]
-
-### Out of scope
-- [Anything mentioned but deferred]
+- [anything inferred, not stated in ticket]
 ```
 
-### A3 — User approval gate (STOP — wait for response)
+### A3 — Plan approval gate ⛔ STOP
 
-After printing the plan, ask exactly:
+Ask:
+> **Approve this plan?**
+> - `approve` → proceed
+> - `change: [what]` → revise plan
+> - `cancel` → stop
 
-> **Ready to implement?**
-> - Type **approve** (or just press enter) to proceed
-> - Type **change:** followed by what you want adjusted
-> - Type **cancel** to stop
+**On `change:`** — revise the plan. Before showing the revision, check if
+the requested change causes any cascading impact and flag it:
+> ⚠ Changing X will also affect Y — [reason]. Still want this?
 
-Do not proceed until the user responds. Read their response:
-
-**If "approve"** → go to A4.
-
-**If "change: …"** → revise the plan based on their feedback.
-Before showing the revised plan, check if their requested change introduces
-any new risk or cascading impact. If it does, flag it clearly:
-```
-⚠ Note: Changing X will also affect Y because Z.
-Do you still want to proceed with this change?
-```
-Then show the updated plan and return to A3.
-
-**If "cancel"** → stop and say "Implementation cancelled."
+Show the revised plan and return to A3.
 
 ### A4 — Worktree check
 
-Read the conversation history for any of these phrases:
-- "use worktree", "create worktree", "in a worktree", "new branch", "separate branch"
+Look for explicit phrases in the conversation: "use worktree", "new branch",
+"separate branch", "in a worktree".
 
-**If found** → create a new worktree and branch:
-```bash
-git worktree add ../{ticket-id-slug} -b feat/{ticket-id-slug}
-```
-Work in that worktree path for all file operations.
-Print: `🌿 Working in worktree: feat/{ticket-id-slug}`
+**Found** → `git worktree add ../{ticket-slug} -b feat/{ticket-slug}`
+and work in that path. Print: `🌿 feat/{ticket-slug}`
 
-**If not found** → work in the current directory. No branch created yet.
-Print: `📁 Working in main directory.`
+**Not found** → work in current directory. No branch yet.
+Print: `📁 Working in current directory`
 
 ### A5 — Implement
 
-Execute the implementation plan approved in A3. Follow this order:
+Order of operations:
+1. **Scaffold** — `pnpm scaffold {Entity}` for each new entity. Immediately
+   fill in all fields (type interface + model columns) — never leave TODO stubs.
+2. **Associations** — Sequelize associations if entities relate.
+3. **Custom logic** — service/repository methods beyond CRUD.
+4. **Frontend** — services, query/mutation hooks, page + PageContent.
+5. **Existing file edits** — modify files that already exist.
 
-1. **New entities first** — run `pnpm scaffold {EntityName}` for each new entity.
-   After scaffolding, immediately fill in the fields (type interface + model columns)
-   based on what the ticket specifies — do not leave them as TODO stubs.
+While implementing, silently apply `/review` checks to everything written.
+Fix any violations before reporting — do not expose internal correction cycles.
 
-2. **Associations** — add Sequelize associations to models if entities relate to each other.
+❌ Do not run `git add`, `git commit`, or `git push`.
 
-3. **Custom logic** — add any custom methods to services or repositories.
+### A6 — Local review gate ⛔ STOP
 
-4. **Frontend** — create service, query hooks, and page files.
-
-5. **Existing file modifications** — make changes to files that already exist.
-
-As you work, internally run the `/review` logic on each file you write to
-catch violations before reporting. If you find a violation in your own output,
-fix it silently — do not report internal correction cycles to the user.
-
-Do NOT run `git add`, `git commit`, or `git push` at any point.
-
-### A6 — Local review gate (STOP — wait for response)
-
-After all changes are complete, produce this report:
-
+Print:
 ```
-## Implementation Complete ✅
+## Changes Ready for Review
 
 **Ticket**: {TICKET-ID} — {Title}
 
-### Files created
+### Created
 - packages/types/src/schema/product.ts
-- services/core/src/models/product.model.ts
-- ... (list every file)
+- [all new files...]
 
-### Files modified
-- services/core/src/routes/index.ts — added productRoutes registration
+### Modified
+- services/core/src/routes/index.ts
 
-### API routes added
-  GET    /api/v1/products
-  POST   /api/v1/products
-  GET    /api/v1/products/:id
-  PUT    /api/v1/products/:id
-  DELETE /api/v1/products/:id
+### API routes
+  GET|POST         /api/v1/products
+  GET|PUT|DELETE   /api/v1/products/:id
 
-### Before you review, remember
-  ⚠ DB migrations still needed for: products, categories
-  ⚠ Run `pnpm build` to check for TypeScript errors
+### ⚠ Still needed (manual)
+  - DB migration for: products table
+  - pnpm build to verify TypeScript
 
 ---
-👉 Please review the changes locally. I have not committed anything.
-   Let me know when you're done, or tell me what to change.
+Nothing has been committed. Review locally and let me know:
+- `approved` → I'll commit and create the PR
+- `change: [what]` → I'll make the change and ask you to review again
 ```
 
-Do not commit. Wait for the user's response.
+**On `change:`** → make the changes, reprint the report, return to A6.
+Never commit between cycles.
 
-**If user asks for changes** → make the requested changes, then reprint the
-report above (updated file list) and wait again. Do NOT commit between cycles.
+### A7 — Commit and PR
 
-**If user says "approved"** or "looks good" or "commit" → go to A7.
-
-### A7 — Final review + commit + PR
-
-1. Run the `/review` checks internally against all changed files.
-   - If violations found → fix them silently, then report:
-     `🔧 Fixed N issue(s) found during pre-commit review.`
-   - If clean → `✅ Pre-commit review passed.`
-
-2. Stage and commit:
-```bash
-git add {all changed files by name — never git add .}
-git commit -m "feat({scope}): {short description}
-
-{body — what was implemented and why}
-
-Implements: {TICKET-ID}
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-```
-
-3. Push and create PR:
-```bash
-git push -u origin {branch}
-gh pr create --title "feat: {title}" --body "..."
-```
-PR body must include: what was built, ticket link, test plan checklist.
-
-4. Update the local replica: set `status` to match the Jira ticket's current status.
-
-5. Print the PR URL wrapped in `<pr-created>` tags.
-
----
-
-## SCENARIO B — Implement by feature description
-
-### B1 — Search local replica
-
-Search `.ai/stories/` for any file whose title or summary is semantically
-close to the description in $ARGUMENTS.
-
-Use Grep to search for key nouns/verbs from the description across all
-`.ai/stories/*.md` files.
-
-**If a match is found:**
-```
-🔍 Found a matching ticket in the local replica:
-
-  {TICKET-ID}: {Title}
-  Status: {status}
-  Summary: {first 2 lines of summary}
-
-Is this the ticket you're referring to?
-- Type **yes** to proceed with this ticket (I'll fetch the latest from Jira)
-- Type **no** to create a new story instead
-```
-Wait for response.
-- "yes" → fetch the ticket from Jira, sync the replica, then continue from **A2**
-- "no" → go to B2
-
-**If no match found** → go to B2.
-
-### B2 — Draft a new user story
-
-Read `.ai/helpers/user-story-strcuture.md` to get the story template.
-
-Draft a full user story for the feature described in $ARGUMENTS. Use the
-template structure exactly:
-- User Story statement
-- Acceptance Criteria (Given/When/Then scenarios)
-- Edge Cases (5–8)
-- Business Rules
-- UI/UX Notes
-
-Also include at the top:
-```
-**Draft Title**: {concise title}
-**Type**: Story
-**Priority**: Medium  (adjust if urgency is clear from description)
-**Labels**: (leave blank — user to fill)
-```
-
-Print the full draft and ask:
-
-> **Review this story draft.**
-> - Type **approve** to create it in Jira and proceed
-> - Type **change:** followed by what needs adjusting
-> - Type **cancel** to stop
-
-### B3 — Story review cycles
-
-**If "change: …"** → revise the story draft. If the requested change has
-implications (e.g. changes scope significantly, adds risk), flag it:
-```
-⚠ Note: {implication}. Still want to include this?
-```
-Show the revised draft and return to B3.
-
-**If "approve"** → go to B4.
-
-**If "cancel"** → stop.
-
-### B4 — Create in Jira and save replica
-
-1. Call `createJiraIssue` with the approved story content.
-   Use the project key from existing tickets in `.ai/stories/` or ask the
-   user if no existing tickets are found.
-
-2. On success, Jira returns a ticket key (e.g. `PROJ-124`).
-
-3. Save the story to `.ai/stories/{TICKET-ID}.md` using the replica format
-   from `.ai/README.md`.
-
-4. Print:
+1. Internally run `/review` on all changed files. Fix silently. Report count.
+2. `git add` each file by name (never `git add .`).
+3. Commit:
    ```
-   ✅ Story created in Jira: {TICKET-ID}
-   📋 Saved to .ai/stories/{TICKET-ID}.md
-   ```
+   feat({scope}): {description}
 
-5. Continue from **A2** using the newly created ticket.
+   {body}
+
+   Implements: {TICKET-ID}
+   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+   ```
+4. Push + `gh pr create`. PR body includes ticket link + test checklist.
+5. Print PR URL in `<pr-created>` tags.
 
 ---
 
-## General rules (apply to both scenarios)
+## SCENARIO B — Implement by plain description (no ticket ID)
 
-- **Never** run `git add`, `git commit`, or `git push` without explicit user approval
-- **Never** create a worktree or branch unless the user explicitly requests it
-- **Always** read existing files before modifying them — never overwrite blindly
-- **Always** use `pnpm scaffold` for new entities — never write scaffold files from scratch
-- **Always** follow CLAUDE.md patterns — run internal `/review` checks on your own output
-- **Never** leave TODO stubs from the scaffolder unfilled after implementation
-- If the ticket is a **Bug** type (not Story/Task), skip the scaffold step and focus on the fix
-- If you are uncertain about a requirement, add it to **Assumptions** in the plan and flag it rather than guessing silently
+No story search. No Jira lookup. Just implement and track it.
+
+### B1 — Create a local tracking entry
+
+Generate a local placeholder ID: `LOCAL-{YYYY-MM-DD}-{slug}` (e.g. `LOCAL-2024-01-15-product-catalog`).
+
+Append a row to `.ai/stories.md`:
+```
+| LOCAL-2024-01-15-product-catalog | {short title from description} | In Progress | Story | — | {today} |
+```
+
+Print: `📋 Tracking as LOCAL-2024-01-15-product-catalog`
+
+### B2 — Analyse
+
+Using only the description in $ARGUMENTS (no Jira fetch), produce the same
+plan format as A2. Use the subagent for codebase exploration.
+
+Then continue from **A3** (plan approval gate) through **A7** (commit + PR).
+
+At A7, if a real Jira ticket gets created later, the user can run
+`/implement {REAL-TICKET-ID}` which will sync and replace the LOCAL entry.
+
+---
+
+## SCENARIO C — Check existing stories (explicit request only)
+
+Triggered when $ARGUMENTS contains "check stories", "check existing",
+"is there a story for", or similar explicit search intent.
+
+1. Read `.ai/stories.md` — show the full table.
+2. If a description is also given, highlight rows whose title is similar.
+3. Ask: "Is any of these what you're looking for?"
+   - `yes, {ID}` → fetch from Jira, continue as Scenario A from A2
+   - `no` → ask "Would you like to create a new story or just implement directly?"
+     - "create story" → draft story using `.ai/helpers/user-story-strcuture.md`,
+       review cycles, create in Jira via `createJiraIssue`, sync to `stories.md`,
+       continue from A2
+     - "implement directly" → continue as Scenario B
+
+---
+
+## Hard rules
+
+- Never commit without the user typing `approved` (or equivalent clear approval)
+- Never create a worktree/branch unless the user explicitly asks
+- Always read existing files before modifying — never overwrite blindly
+- Always use `pnpm scaffold` for new entities — never write scaffold files from scratch
+- Always fill in scaffold TODOs before reporting implementation complete
+- If the ticket is a Bug type — skip scaffold, focus on the targeted fix
+- Delegate heavy file exploration to a subagent to avoid bloating main context
