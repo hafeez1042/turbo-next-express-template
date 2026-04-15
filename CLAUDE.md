@@ -39,7 +39,17 @@ frontend/
 
 ## Adding a New Entity — Canonical Workflow
 
-Follow this exact sequence. Use `user` → `IUser` as the reference implementation.
+**Always scaffold first:**
+```bash
+pnpm scaffold <EntityName>
+# Example:
+pnpm scaffold Product
+pnpm scaffold BlogPost
+```
+
+This generates all 8 files and registers the route automatically. Then fill in the fields — do not write these files from scratch.
+
+If scaffolding is not available, follow this exact sequence. Use `user` → `IUser` as the reference implementation.
 
 ### 1. Type — `packages/types/src/schema/<entity>.ts`
 
@@ -281,6 +291,44 @@ export class ProductService extends AbstractServices<IProduct> {
     this.http.get(`?category=${category}`).then(r => r.data.data);
 }
 ```
+
+---
+
+## Architectural Enforcement (ESLint)
+
+Violations of these rules are **hard lint errors** — CI will fail:
+
+| File location | Forbidden imports | Reason |
+|---|---|---|
+| `src/controllers/**` | `../models/*`, `../repositories/*`, `sequelize` | Skip-layer violation |
+| `src/services/**` | `../models/*`, `sequelize` | Skip-layer violation |
+| `src/routes/**` | `../models/*`, `../repositories/*`, `../services/*`, `sequelize` | Routes → controllers only |
+| `app/**`, `components/**` | `@tanstack/react-query`, `axios`, `../services/*.service` | Must use hooks |
+| `queries/**`, `mutations/**` | `@tanstack/react-query`, `axios` | Must use `@repo/frontend/hooks/useQuery` |
+
+Run `pnpm lint` to check. These rules enforce the layer diagram:
+
+```
+routes → controllers → services → repositories → models
+                                                    ↑
+                                               (Sequelize)
+
+components → query/mutation hooks → services (AbstractServices) → API
+```
+
+## Stop — Red Flags
+
+If you are about to do any of the following, **stop and reconsider**:
+
+- Defining a TypeScript interface or enum outside `packages/types/src/schema/` — types belong only in `@repo/types`
+- Writing a controller without `extends BaseController<T>` — always extend
+- Writing a service without `extends BaseServices<T>` — always extend
+- Writing a repository without `extends BaseRepository<T>` — always extend
+- Importing a Sequelize model in a controller or service — go through the repository
+- Using `import { useQuery } from "@tanstack/react-query"` in a component or hook — use `@repo/frontend/hooks/useQuery`
+- Calling `fetch()` or importing `axios` directly in a component — use a service class
+- Writing more than ~5 lines in a route file (beyond the standard CRUD registrations) — routes are thin
+- Exporting a default from any file other than `page.tsx` / `layout.tsx`
 
 ---
 
